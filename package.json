@@ -393,5 +393,5 @@
     "ws@npm:~8.17.1": "^8.20.1"
   },
   "version": "1.7.1",
-  "packageManager": "yarn@4.11.0"
+  "packageManager": "yarn@4.15.0"
 }

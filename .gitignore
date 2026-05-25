@@ -3,7 +3,9 @@ build
 node_modules/*
 .env
 .env.local
+.env.development
 .env.production
+.understand-anything/
 .log
 .vscode/*
 npm-debug.log

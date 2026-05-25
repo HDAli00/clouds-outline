@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Outline – Services Architecture</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface-hover: #222632;
+      --border: #2d3148;
+      --text: #e4e7ef;
+      --text-muted: #8b90a0;
+      --accent-web: #4f8cff;
+      --accent-ws: #a86eff;
+      --accent-collab: #00d4aa;
+      --accent-worker: #ff8c42;
+      --accent-admin: #ff5c8a;
+      --accent-cron: #ffd93d;
+      --accent-redis: #dc382d;
+      --accent-pg: #336791;
+      --accent-s3: #ff9900;
+      --accent-plugin: #7c3aed;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 2rem;
+      min-height: 100vh;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+
+    .header h1 {
+      font-size: 2.5rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--accent-web), var(--accent-collab));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 0.5rem;
+    }
+
+    .header p {
+      color: var(--text-muted);
+      font-size: 1.1rem;
+    }
+
+    .architecture {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    /* Section titles */
+    .section-title {
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 1.5rem;
+      padding-left: 0.5rem;
+      border-left: 3px solid var(--border);
+    }
+
+    /* Services Grid */
+    .services-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 3rem;
+    }
+
+    .service-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      transition: transform 0.2s, border-color 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .service-card:hover {
+      transform: translateY(-2px);
+      border-color: var(--accent);
+    }
+
+    .service-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--accent);
+    }
+
+    .service-card[data-service="web"] { --accent: var(--accent-web); }
+    .service-card[data-service="websockets"] { --accent: var(--accent-ws); }
+    .service-card[data-service="collaboration"] { --accent: var(--accent-collab); }
+    .service-card[data-service="worker"] { --accent: var(--accent-worker); }
+    .service-card[data-service="admin"] { --accent: var(--accent-admin); }
+    .service-card[data-service="cron"] { --accent: var(--accent-cron); }
+
+    .service-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+
+    .service-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+      background: color-mix(in srgb, var(--accent) 15%, transparent);
+      border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+    }
+
+    .service-name {
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+
+    .service-type {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      background: var(--bg);
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-left: auto;
+    }
+
+    .service-desc {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin-bottom: 1rem;
+    }
+
+    .service-details {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+    }
+
+    .detail-group {
+      background: var(--bg);
+      border-radius: 8px;
+      padding: 0.75rem;
+    }
+
+    .detail-group.full-width {
+      grid-column: 1 / -1;
+    }
+
+    .detail-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 0.3rem;
+    }
+
+    .detail-value {
+      font-size: 0.85rem;
+      color: var(--text);
+    }
+
+    .detail-value code {
+      background: color-mix(in srgb, var(--accent) 10%, transparent);
+      color: var(--accent);
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 0.8rem;
+    }
+
+    .components-list {
+      list-style: none;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+
+    .components-list li {
+      font-size: 0.78rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+
+    /* Infrastructure Section */
+    .infra-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+      margin-bottom: 3rem;
+    }
+
+    .infra-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      text-align: center;
+    }
+
+    .infra-card[data-infra="redis"] { border-color: color-mix(in srgb, var(--accent-redis) 40%, var(--border)); }
+    .infra-card[data-infra="postgres"] { border-color: color-mix(in srgb, var(--accent-pg) 40%, var(--border)); }
+    .infra-card[data-infra="s3"] { border-color: color-mix(in srgb, var(--accent-s3) 40%, var(--border)); }
+
+    .infra-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.6rem;
+      margin: 0 auto 1rem;
+    }
+
+    .infra-card[data-infra="redis"] .infra-icon {
+      background: color-mix(in srgb, var(--accent-redis) 15%, transparent);
+    }
+    .infra-card[data-infra="postgres"] .infra-icon {
+      background: color-mix(in srgb, var(--accent-pg) 15%, transparent);
+    }
+    .infra-card[data-infra="s3"] .infra-icon {
+      background: color-mix(in srgb, var(--accent-s3) 15%, transparent);
+    }
+
+    .infra-name {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    .infra-roles {
+      list-style: none;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+
+    .infra-roles li {
+      padding: 0.2rem 0;
+    }
+
+    .infra-roles li::before {
+      content: '•';
+      margin-right: 0.5rem;
+      color: var(--border);
+    }
+
+    /* Decomposition Diagram */
+    .diagram-section {
+      margin-bottom: 3rem;
+    }
+
+    .diagram-container {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 2rem;
+      overflow-x: auto;
+    }
+
+    .diagram-container svg {
+      display: block;
+      margin: 0 auto;
+      max-width: 100%;
+      height: auto;
+    }
+
+    /* Plugin Section */
+    .plugin-section {
+      margin-bottom: 3rem;
+    }
+
+    .plugin-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+    }
+
+    .plugin-hook {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+    }
+
+    .plugin-hook-name {
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--accent-plugin);
+      margin-bottom: 0.4rem;
+    }
+
+    .plugin-hook-desc {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      margin-bottom: 0.6rem;
+    }
+
+    .plugin-examples {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+    }
+
+    .plugin-example {
+      font-size: 0.72rem;
+      background: color-mix(in srgb, var(--accent-plugin) 10%, transparent);
+      color: color-mix(in srgb, var(--accent-plugin) 80%, white);
+      padding: 2px 7px;
+      border-radius: 3px;
+    }
+
+    /* Communication Arrows */
+    .comm-section {
+      margin-bottom: 3rem;
+    }
+
+    .comm-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--surface);
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    .comm-table th,
+    .comm-table td {
+      padding: 0.75rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.88rem;
+    }
+
+    .comm-table th {
+      background: var(--bg);
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-size: 0.72rem;
+      letter-spacing: 0.05em;
+    }
+
+    .comm-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .protocol-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .protocol-badge.http { background: #1e3a5f; color: #7cb3ff; }
+    .protocol-badge.ws { background: #2d1b4e; color: #c99eff; }
+    .protocol-badge.redis { background: #3b1515; color: #ff8080; }
+    .protocol-badge.queue { background: #3b2e15; color: #ffc880; }
+
+    /* Procfile */
+    .procfile-section {
+      margin-bottom: 3rem;
+    }
+
+    .procfile-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+    }
+
+    .procfile-card pre {
+      background: var(--bg);
+      border-radius: 8px;
+      padding: 1rem;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 0.85rem;
+      overflow-x: auto;
+      margin-top: 0.75rem;
+    }
+
+    .procfile-card pre .comment { color: #6b7280; }
+    .procfile-card pre .key { color: var(--accent-web); }
+    .procfile-card pre .value { color: var(--accent-collab); }
+
+    /* Monorepo Layout */
+    .monorepo-section {
+      margin-bottom: 3rem;
+    }
+
+    .monorepo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+    }
+
+    .monorepo-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+      text-align: center;
+    }
+
+    .monorepo-item .folder {
+      font-size: 1.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .monorepo-item .name {
+      font-weight: 600;
+      margin-bottom: 0.3rem;
+    }
+
+    .monorepo-item .desc {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      body { padding: 1rem; }
+      .services-grid { grid-template-columns: 1fr; }
+      .infra-grid { grid-template-columns: 1fr; }
+      .service-details { grid-template-columns: 1fr; }
+      .header h1 { font-size: 1.8rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Outline – Service Architecture</h1>
+    <p>Monorepo service decomposition &amp; infrastructure topology</p>
+  </div>
+
+  <div class="architecture">
+
+    <!-- Deployment Procfile -->
+    <section class="procfile-section">
+      <div class="section-title">Deployment Configuration (Procfile)</div>
+      <div class="procfile-card">
+        <p style="color: var(--text-muted); font-size: 0.9rem;">
+          In production, services are grouped into two process types. The <strong>web</strong> process handles all client-facing traffic, while the <strong>worker</strong> process handles background jobs. Each can be scaled independently.
+        </p>
+        <pre><span class="key">web:</span>    <span class="value">yarn start --services=web,websockets,collaboration</span>
+<span class="key">worker:</span> <span class="value">yarn start --services=worker</span></pre>
+      </div>
+    </section>
+
+    <!-- Services -->
+    <section>
+      <div class="section-title">Application Services</div>
+      <div class="services-grid">
+
+        <!-- Web -->
+        <div class="service-card" data-service="web">
+          <div class="service-header">
+            <div class="service-icon">🌐</div>
+            <div class="service-name">Web</div>
+            <span class="service-type">Koa + React SSR</span>
+          </div>
+          <p class="service-desc">Main HTTP server serving the React SPA, REST/RPC API, authentication routes, OAuth flows, and MCP endpoints.</p>
+          <div class="service-details">
+            <div class="detail-group">
+              <div class="detail-label">Port</div>
+              <div class="detail-value"><code>3000</code></div>
+            </div>
+            <div class="detail-group">
+              <div class="detail-label">Entry</div>
+              <div class="detail-value"><code>server/services/web.ts</code></div>
+            </div>
+            <div class="detail-group full-width">
+              <div class="detail-label">Sub-components</div>
+              <ul class="components-list">
+                <li>routes/api</li>
+                <li>routes/auth</li>
+                <li>routes/oauth</li>
+                <li>routes/mcp</li>
+                <li>React SSR</li>
+                <li>CSP middleware</li>
+                <li>CSRF protection</li>
+                <li>Rate limiter</li>
+              </ul>
+            </div>
+            <div class="detail-group full-width">
+              <div class="detail-label">Dependencies</div>
+              <div class="detail-value">PostgreSQL, Redis, S3</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- WebSockets -->
+        <div class="service-card" data-service="websockets">
+          <div class="service-header">
+            <div class="service-icon">⚡</div>
+            <div class="service-name">WebSockets</div>
+            <span class="service-type">Socket.IO</span>
+          </div>
+          <p class="service-desc">Real-time event delivery for notifications, presence, and document updates. Authenticates via JWT from cookies.</p>
+          <div class="service-details">
+            <div class="detail-group">
+              <div class="detail-label">Path</div>
+              <div class="detail-value"><code>/realtime</code></div>
+            </div>
+            <div class="detail-group">
+              <div class="detail-label">Entry</div>
+              <div class="detail-value"><code>server/services/websockets.ts</code></div>
+            </div>
+            <div class="detail-group full-width">
+              <div class="detail-label">Sub-components</div>
+              <ul class="components-list">
+                <li>Socket.IO server</li>
+                <li>Redis adapter (pub/sub)</li>
+                <li>JWT auth</li>
+                <li>WebsocketsProcessor</li>
+                <li>Collection/Group permissions</li>
+              </ul>
+            </div>
+            <div class="detail-group full-width">
+              <div class="detail-label">Dependencies</div>
+              <div class="detail-value">Redis (pub/sub scaling), PostgreSQL (auth lookups)</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Collaboration -->
+        <div class="service-card" data-service="collaboration">
+          <div class="service-header">
+            <div class="service-icon">✍️</div>
+            <div class="service-name">Collaboration</div>
+            <span class="service-type">Hocuspocus / Y.js</span>
+          </div>
+          <p class="service-desc">Real-time collaborative document editing using CRDTs. Manages document state synchronization across multiple editors.</p>
+          <div class="service-details">
+            <div class="detail-group">
+              <div class="detail-label">Path</div>
+              <div class="detail-value"><code>/collaboration</code></div>
+            </div>
+            <div class="detail-group">
+              <div class="detail-label">Entry</div>
+              <div class="detail-value"><code>server/services/collaboration.ts</code></div>
+            </div>
+            <div class="detail-group full-width">
+              <div class="detail-label">Extensions</div>
+              <ul class="components-list">
+                <li>PersistenceExtension</li>
+                <li>AuthenticationExtension</li>
+                <li>Redis sync</li>
+                <li>Throttle</li>
+                <li>ConnectionLimit</li>
+                <li>ViewsExtension</li>
+                <li>MetricsExtension</li>
+                <li>APIUpdateExtension</li>
+                <li>EditorVersionExtension</li>
+              </ul>
+            </div>
+            <div class="detail-group full-width">
+              <div class="detail-label">Dependencies</div>
+              <div class="detail-value">Redis (CRDT awareness), PostgreSQL (persistence)</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Worker -->
+        <div class="service-card" data-service="worker">
+          <div class="service-header">
+            <div class="service-icon">⚙️</div>
+            <div class="service-name">Worker</div>
+            <span class="service-type">Bull / BullMQ</span>
+          </div>
+          <p class="service-desc">Background job processor handling async events, emails, imports/exports, webhooks, and plugin processors.</p>
+          <div class="service-details">
+            <div class="detail-group">
+              <div class="detail-label">Port</div>
+              <div class="detail-value"><code>None</code> (background)</div>
+            </div>
+            <div class="detail-group">
+              <div class="detail-label">Entry</div>
+              <div class="detail-value"><code>server/services/worker.ts</code></div>
+            </div>
+            <div class="detail-group full-width">
+              <div class="detail-label">Queues</div>
+              <ul class="components-list">
+                <li>globalEventQueue</li>
+                <li>processorEventQueue</li>
+                <li>websocketQueue</li>
+                <li>taskQueue</li>
+              </ul>
+            </div>
+            <div class="detail-group full-width">
+              <div class="detail-label">Dependencies</div>
+              <div class="detail-value">Redis (job queues), PostgreSQL (data operations)</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Admin -->
+        <div class="service-card" data-service="admin">
+          <div class="service-header">
+            <div class="service-icon">📊</div>
+            <div class="service-name">Admin (Bull Board)</div>
+            <span class="service-type">Bull Board UI</span>
+          </div>
+          <p class="service-desc">Web dashboard for monitoring and managing background job queues. Mounted at <code>/admin</code>.</p>
+          <div class="service-details">
+            <div class="detail-group">
+              <div class="detail-label">Path</div>
+              <div class="detail-value"><code>/admin</code></div>
+            </div>
+            <div class="detail-group">
+              <div class="detail-label">Entry</div>
+              <div class="detail-value"><code>server/services/admin.ts</code></div>
+            </div>
+            <div class="detail-group full-width">
+              <div class="detail-label">Monitors</div>
+              <ul class="components-list">
+                <li>globalEventQueue</li>
+                <li>processorEventQueue</li>
+                <li>websocketQueue</li>
+                <li>taskQueue</li>
+              </ul>
+            </div>
+            <div class="detail-group full-width">
+              <div class="detail-label">Dependencies</div>
+              <div class="detail-value">Redis (queue introspection)</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Cron -->
+        <div class="service-card" data-service="cron">
+          <div class="service-header">
+            <div class="service-icon">🕐</div>
+            <div class="service-name">Cron</div>
+            <span class="service-type">setInterval scheduler</span>
+          </div>
+          <p class="service-desc">Periodic task scheduler running daily and hourly CronTask instances for cleanup, analytics, and maintenance.</p>
+          <div class="service-details">
+            <div class="detail-group">
+              <div class="detail-label">Port</div>
+              <div class="detail-value"><code>None</code> (background)</div>
+            </div>
+            <div class="detail-group">
+              <div class="detail-label">Entry</div>
+              <div class="detail-value"><code>server/services/cron.ts</code></div>
+            </div>
+            <div class="detail-group full-width">
+              <div class="detail-label">Intervals</div>
+              <ul class="components-list">
+                <li>Daily tasks</li>
+                <li>Hourly tasks</li>
+                <li>CronTask base class</li>
+                <li>Partitioned execution</li>
+              </ul>
+            </div>
+            <div class="detail-group full-width">
+              <div class="detail-label">Dependencies</div>
+              <div class="detail-value">PostgreSQL, Redis (task scheduling)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Service Decomposition Diagram -->
+    <section class="diagram-section">
+      <div class="section-title">Service Decomposition &amp; Data Flow</div>
+      <div class="diagram-container">
+        <svg viewBox="0 0 1100 700" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+          <!-- Defs -->
+          <defs>
+            <marker id="arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+              <polygon points="0 0, 8 3, 0 6" fill="#4f8cff" opacity="0.7"/>
+            </marker>
+            <marker id="arrow-red" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+              <polygon points="0 0, 8 3, 0 6" fill="#dc382d" opacity="0.7"/>
+            </marker>
+            <marker id="arrow-green" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+              <polygon points="0 0, 8 3, 0 6" fill="#00d4aa" opacity="0.7"/>
+            </marker>
+            <filter id="glow">
+              <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+              <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+
+          <!-- Client -->
+          <rect x="420" y="20" width="260" height="50" rx="8" fill="#1a1d27" stroke="#4f8cff" stroke-width="2"/>
+          <text x="550" y="50" text-anchor="middle" fill="#e4e7ef" font-size="14" font-weight="600">Browser Client (React SPA)</text>
+
+          <!-- Connection lines from Client -->
+          <line x1="480" y1="70" x2="220" y2="140" stroke="#4f8cff" stroke-width="1.5" stroke-dasharray="4" marker-end="url(#arrow)"/>
+          <line x1="550" y1="70" x2="550" y2="140" stroke="#a86eff" stroke-width="1.5" stroke-dasharray="4" marker-end="url(#arrow)"/>
+          <line x1="620" y1="70" x2="880" y2="140" stroke="#00d4aa" stroke-width="1.5" stroke-dasharray="4" marker-end="url(#arrow-green)"/>
+
+          <!-- Web Service -->
+          <rect x="80" y="140" width="280" height="180" rx="10" fill="#1a1d27" stroke="#4f8cff" stroke-width="2"/>
+          <rect x="80" y="140" width="280" height="30" rx="10" fill="#4f8cff" opacity="0.15"/>
+          <text x="220" y="161" text-anchor="middle" fill="#4f8cff" font-size="13" font-weight="700">WEB SERVICE</text>
+          <text x="100" y="190" fill="#8b90a0" font-size="11">├─ /api/*     REST/RPC API</text>
+          <text x="100" y="210" fill="#8b90a0" font-size="11">├─ /auth/*    OAuth, SSO, JWT</text>
+          <text x="100" y="230" fill="#8b90a0" font-size="11">├─ /oauth/*   OAuth provider</text>
+          <text x="100" y="250" fill="#8b90a0" font-size="11">├─ /mcp/*     MCP endpoints</text>
+          <text x="100" y="270" fill="#8b90a0" font-size="11">├─ /admin     Bull Board UI</text>
+          <text x="100" y="290" fill="#8b90a0" font-size="11">└─ /*         React SSR</text>
+          <text x="220" y="310" text-anchor="middle" fill="#4f8cff" font-size="10">:3000</text>
+
+          <!-- WebSocket Service -->
+          <rect x="410" y="140" width="280" height="180" rx="10" fill="#1a1d27" stroke="#a86eff" stroke-width="2"/>
+          <rect x="410" y="140" width="280" height="30" rx="10" fill="#a86eff" opacity="0.15"/>
+          <text x="550" y="161" text-anchor="middle" fill="#a86eff" font-size="13" font-weight="700">WEBSOCKETS SERVICE</text>
+          <text x="430" y="190" fill="#8b90a0" font-size="11">├─ /realtime  Socket.IO</text>
+          <text x="430" y="210" fill="#8b90a0" font-size="11">├─ JWT auth from cookies</text>
+          <text x="430" y="230" fill="#8b90a0" font-size="11">├─ Redis pub/sub adapter</text>
+          <text x="430" y="250" fill="#8b90a0" font-size="11">├─ Presence tracking</text>
+          <text x="430" y="270" fill="#8b90a0" font-size="11">├─ Document update push</text>
+          <text x="430" y="290" fill="#8b90a0" font-size="11">└─ Collection permissions</text>
+          <text x="550" y="310" text-anchor="middle" fill="#a86eff" font-size="10">same server, /realtime path</text>
+
+          <!-- Collaboration Service -->
+          <rect x="740" y="140" width="280" height="180" rx="10" fill="#1a1d27" stroke="#00d4aa" stroke-width="2"/>
+          <rect x="740" y="140" width="280" height="30" rx="10" fill="#00d4aa" opacity="0.15"/>
+          <text x="880" y="161" text-anchor="middle" fill="#00d4aa" font-size="13" font-weight="700">COLLABORATION SERVICE</text>
+          <text x="760" y="190" fill="#8b90a0" font-size="11">├─ /collaboration  WebSocket</text>
+          <text x="760" y="210" fill="#8b90a0" font-size="11">├─ Hocuspocus server (Y.js)</text>
+          <text x="760" y="230" fill="#8b90a0" font-size="11">├─ CRDT state management</text>
+          <text x="760" y="250" fill="#8b90a0" font-size="11">├─ Persistence extension</text>
+          <text x="760" y="270" fill="#8b90a0" font-size="11">├─ Rate limiting / throttle</text>
+          <text x="760" y="290" fill="#8b90a0" font-size="11">└─ Connection limits</text>
+          <text x="880" y="310" text-anchor="middle" fill="#00d4aa" font-size="10">same server, /collaboration path</text>
+
+          <!-- Worker Service -->
+          <rect x="80" y="380" width="280" height="160" rx="10" fill="#1a1d27" stroke="#ff8c42" stroke-width="2"/>
+          <rect x="80" y="380" width="280" height="30" rx="10" fill="#ff8c42" opacity="0.15"/>
+          <text x="220" y="401" text-anchor="middle" fill="#ff8c42" font-size="13" font-weight="700">WORKER SERVICE</text>
+          <text x="100" y="430" fill="#8b90a0" font-size="11">├─ globalEventQueue</text>
+          <text x="100" y="450" fill="#8b90a0" font-size="11">├─ processorEventQueue</text>
+          <text x="100" y="470" fill="#8b90a0" font-size="11">├─ taskQueue (emails, exports)</text>
+          <text x="100" y="490" fill="#8b90a0" font-size="11">├─ Processor registration</text>
+          <text x="100" y="510" fill="#8b90a0" font-size="11">└─ Plugin processors</text>
+          <text x="220" y="530" text-anchor="middle" fill="#ff8c42" font-size="10">No port (background process)</text>
+
+          <!-- Cron Service -->
+          <rect x="410" y="380" width="280" height="160" rx="10" fill="#1a1d27" stroke="#ffd93d" stroke-width="2"/>
+          <rect x="410" y="380" width="280" height="30" rx="10" fill="#ffd93d" opacity="0.15"/>
+          <text x="550" y="401" text-anchor="middle" fill="#ffd93d" font-size="13" font-weight="700">CRON SERVICE</text>
+          <text x="430" y="430" fill="#8b90a0" font-size="11">├─ Daily scheduled tasks</text>
+          <text x="430" y="450" fill="#8b90a0" font-size="11">├─ Hourly scheduled tasks</text>
+          <text x="430" y="470" fill="#8b90a0" font-size="11">├─ CronTask base class</text>
+          <text x="430" y="490" fill="#8b90a0" font-size="11">├─ Partitioned execution</text>
+          <text x="430" y="510" fill="#8b90a0" font-size="11">└─ Cleanup &amp; maintenance</text>
+          <text x="550" y="530" text-anchor="middle" fill="#ffd93d" font-size="10">No port (timer-based)</text>
+
+          <!-- Plugins -->
+          <rect x="740" y="380" width="280" height="160" rx="10" fill="#1a1d27" stroke="#7c3aed" stroke-width="2"/>
+          <rect x="740" y="380" width="280" height="30" rx="10" fill="#7c3aed" opacity="0.15"/>
+          <text x="880" y="401" text-anchor="middle" fill="#7c3aed" font-size="13" font-weight="700">PLUGIN SYSTEM</text>
+          <text x="760" y="430" fill="#8b90a0" font-size="11">├─ AuthProvider hooks</text>
+          <text x="760" y="450" fill="#8b90a0" font-size="11">├─ API route hooks</text>
+          <text x="760" y="470" fill="#8b90a0" font-size="11">├─ Processor hooks</text>
+          <text x="760" y="490" fill="#8b90a0" font-size="11">├─ SearchProvider hooks</text>
+          <text x="760" y="510" fill="#8b90a0" font-size="11">└─ UnfurlProvider hooks</text>
+          <text x="880" y="530" text-anchor="middle" fill="#7c3aed" font-size="10">Auto-discovered from plugins/</text>
+
+          <!-- Infrastructure -->
+          <rect x="180" y="600" width="180" height="60" rx="8" fill="#1a1d27" stroke="#dc382d" stroke-width="2"/>
+          <text x="270" y="628" text-anchor="middle" fill="#dc382d" font-size="13" font-weight="600">Redis</text>
+          <text x="270" y="648" text-anchor="middle" fill="#8b90a0" font-size="10">Cache · Pub/Sub · Queues</text>
+
+          <rect x="460" y="600" width="180" height="60" rx="8" fill="#1a1d27" stroke="#336791" stroke-width="2"/>
+          <text x="550" y="628" text-anchor="middle" fill="#336791" font-size="13" font-weight="600">PostgreSQL</text>
+          <text x="550" y="648" text-anchor="middle" fill="#8b90a0" font-size="10">Primary data store</text>
+
+          <rect x="740" y="600" width="180" height="60" rx="8" fill="#1a1d27" stroke="#ff9900" stroke-width="2"/>
+          <text x="830" y="628" text-anchor="middle" fill="#ff9900" font-size="13" font-weight="600">S3 Storage</text>
+          <text x="830" y="648" text-anchor="middle" fill="#8b90a0" font-size="10">Files · Attachments · Exports</text>
+
+          <!-- Connection lines to infrastructure -->
+          <!-- Web to infra -->
+          <line x1="220" y1="320" x2="220" y2="380" stroke="#4f8cff" stroke-width="1" opacity="0" />
+          <line x1="200" y1="320" x2="270" y2="600" stroke="#dc382d" stroke-width="1" stroke-dasharray="3" opacity="0.4"/>
+          <line x1="240" y1="320" x2="550" y2="600" stroke="#336791" stroke-width="1" stroke-dasharray="3" opacity="0.4"/>
+          <line x1="280" y1="320" x2="830" y2="600" stroke="#ff9900" stroke-width="1" stroke-dasharray="3" opacity="0.4"/>
+
+          <!-- Worker to infra -->
+          <line x1="200" y1="540" x2="270" y2="600" stroke="#dc382d" stroke-width="1.5" stroke-dasharray="3" opacity="0.5" marker-end="url(#arrow-red)"/>
+          <line x1="260" y1="540" x2="550" y2="600" stroke="#336791" stroke-width="1.5" stroke-dasharray="3" opacity="0.5"/>
+
+          <!-- Cron to infra -->
+          <line x1="500" y1="540" x2="270" y2="600" stroke="#dc382d" stroke-width="1" stroke-dasharray="3" opacity="0.4"/>
+          <line x1="580" y1="540" x2="550" y2="600" stroke="#336791" stroke-width="1" stroke-dasharray="3" opacity="0.4"/>
+
+          <!-- WS to Redis -->
+          <line x1="550" y1="320" x2="270" y2="600" stroke="#dc382d" stroke-width="1.5" stroke-dasharray="3" opacity="0.5" marker-end="url(#arrow-red)"/>
+
+          <!-- Collab to infra -->
+          <line x1="850" y1="320" x2="270" y2="600" stroke="#dc382d" stroke-width="1" stroke-dasharray="3" opacity="0.4"/>
+          <line x1="900" y1="320" x2="550" y2="600" stroke="#336791" stroke-width="1" stroke-dasharray="3" opacity="0.4"/>
+
+          <!-- Web to Worker (event bus) -->
+          <path d="M 220 320 Q 220 350 220 380" stroke="#ff8c42" stroke-width="1.5" stroke-dasharray="4" fill="none" marker-end="url(#arrow)"/>
+          <text x="140" y="355" fill="#ff8c42" font-size="9" opacity="0.8">events →</text>
+        </svg>
+      </div>
+    </section>
+
+    <!-- Shared Infrastructure -->
+    <section>
+      <div class="section-title">Shared Infrastructure</div>
+      <div class="infra-grid">
+        <div class="infra-card" data-infra="postgres">
+          <div class="infra-icon">🐘</div>
+          <div class="infra-name">PostgreSQL</div>
+          <ul class="infra-roles">
+            <li>Primary persistent data store</li>
+            <li>Sequelize ORM models</li>
+            <li>Full-text search (pg plugin)</li>
+            <li>Migrations via Sequelize CLI</li>
+            <li>Document content &amp; metadata</li>
+            <li>User accounts &amp; teams</li>
+          </ul>
+        </div>
+        <div class="infra-card" data-infra="redis">
+          <div class="infra-icon">🔴</div>
+          <div class="infra-name">Redis</div>
+          <ul class="infra-roles">
+            <li>Bull/BullMQ job queues</li>
+            <li>Socket.IO pub/sub adapter</li>
+            <li>Collaboration awareness (Y.js)</li>
+            <li>Rate limiting state</li>
+            <li>Cache (unfurl, sessions)</li>
+            <li>Health monitoring</li>
+          </ul>
+        </div>
+        <div class="infra-card" data-infra="s3">
+          <div class="infra-icon">📦</div>
+          <div class="infra-name">S3-Compatible Storage</div>
+          <ul class="infra-roles">
+            <li>Image uploads</li>
+            <li>File attachments</li>
+            <li>Document exports (zip)</li>
+            <li>Avatar storage</li>
+            <li>Import file processing</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Communication Patterns -->
+    <section class="comm-section">
+      <div class="section-title">Inter-Service Communication</div>
+      <table class="comm-table">
+        <thead>
+          <tr>
+            <th>From</th>
+            <th>To</th>
+            <th>Protocol</th>
+            <th>Purpose</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Client</td>
+            <td>Web</td>
+            <td><span class="protocol-badge http">HTTP</span></td>
+            <td>API calls, page loads, authentication</td>
+          </tr>
+          <tr>
+            <td>Client</td>
+            <td>WebSockets</td>
+            <td><span class="protocol-badge ws">WebSocket</span></td>
+            <td>Real-time events, notifications, presence</td>
+          </tr>
+          <tr>
+            <td>Client</td>
+            <td>Collaboration</td>
+            <td><span class="protocol-badge ws">WebSocket</span></td>
+            <td>Document CRDT sync (Y.js protocol)</td>
+          </tr>
+          <tr>
+            <td>Web</td>
+            <td>Worker</td>
+            <td><span class="protocol-badge queue">Queue</span></td>
+            <td>Async event dispatch (globalEventQueue)</td>
+          </tr>
+          <tr>
+            <td>Worker</td>
+            <td>WebSockets</td>
+            <td><span class="protocol-badge redis">Redis</span></td>
+            <td>Push events to connected clients (websocketQueue)</td>
+          </tr>
+          <tr>
+            <td>WebSockets</td>
+            <td>WebSockets (N)</td>
+            <td><span class="protocol-badge redis">Redis</span></td>
+            <td>Pub/sub for multi-instance fan-out</td>
+          </tr>
+          <tr>
+            <td>Collaboration</td>
+            <td>Collaboration (N)</td>
+            <td><span class="protocol-badge redis">Redis</span></td>
+            <td>CRDT awareness across instances</td>
+          </tr>
+          <tr>
+            <td>Cron</td>
+            <td>Worker</td>
+            <td><span class="protocol-badge queue">Queue</span></td>
+            <td>Schedule CronTask jobs on taskQueue</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Plugin System -->
+    <section class="plugin-section">
+      <div class="section-title">Plugin Hook System</div>
+      <div class="plugin-grid">
+        <div class="plugin-hook">
+          <div class="plugin-hook-name">AuthProvider</div>
+          <div class="plugin-hook-desc">Adds an authentication provider (OAuth, OIDC, SAML)</div>
+          <div class="plugin-examples">
+            <span class="plugin-example">google</span>
+            <span class="plugin-example">slack</span>
+            <span class="plugin-example">github</span>
+            <span class="plugin-example">gitlab</span>
+            <span class="plugin-example">azure</span>
+            <span class="plugin-example">oidc</span>
+          </div>
+        </div>
+        <div class="plugin-hook">
+          <div class="plugin-hook-name">API</div>
+          <div class="plugin-hook-desc">Mounts a Koa Router with custom API endpoints</div>
+          <div class="plugin-examples">
+            <span class="plugin-example">slack</span>
+            <span class="plugin-example">webhooks</span>
+            <span class="plugin-example">zapier</span>
+            <span class="plugin-example">linear</span>
+          </div>
+        </div>
+        <div class="plugin-hook">
+          <div class="plugin-hook-name">Processor</div>
+          <div class="plugin-hook-desc">Background event processor reacting to model events</div>
+          <div class="plugin-examples">
+            <span class="plugin-example">slack</span>
+            <span class="plugin-example">webhooks</span>
+            <span class="plugin-example">discord</span>
+            <span class="plugin-example">email</span>
+          </div>
+        </div>
+        <div class="plugin-hook">
+          <div class="plugin-hook-name">SearchProvider</div>
+          <div class="plugin-hook-desc">Alternative search backend implementation</div>
+          <div class="plugin-examples">
+            <span class="plugin-example">search-postgres</span>
+          </div>
+        </div>
+        <div class="plugin-hook">
+          <div class="plugin-hook-name">UnfurlProvider</div>
+          <div class="plugin-hook-desc">Rich link preview generation for embedded URLs</div>
+          <div class="plugin-examples">
+            <span class="plugin-example">iframely</span>
+            <span class="plugin-example">figma</span>
+            <span class="plugin-example">diagrams</span>
+          </div>
+        </div>
+        <div class="plugin-hook">
+          <div class="plugin-hook-name">Task</div>
+          <div class="plugin-hook-desc">Background task (scheduled or one-shot async work)</div>
+          <div class="plugin-examples">
+            <span class="plugin-example">webhooks</span>
+            <span class="plugin-example">notion</span>
+          </div>
+        </div>
+        <div class="plugin-hook">
+          <div class="plugin-hook-name">EmailTemplate</div>
+          <div class="plugin-hook-desc">Custom transactional email template</div>
+          <div class="plugin-examples">
+            <span class="plugin-example">email</span>
+          </div>
+        </div>
+        <div class="plugin-hook">
+          <div class="plugin-hook-name">Settings (Client)</div>
+          <div class="plugin-hook-desc">Admin settings page in the web UI</div>
+          <div class="plugin-examples">
+            <span class="plugin-example">slack</span>
+            <span class="plugin-example">google</span>
+            <span class="plugin-example">github</span>
+            <span class="plugin-example">zapier</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Monorepo Structure -->
+    <section class="monorepo-section">
+      <div class="section-title">Monorepo Layout</div>
+      <div class="monorepo-grid">
+        <div class="monorepo-item">
+          <div class="folder">📱</div>
+          <div class="name">app/</div>
+          <div class="desc">React frontend with MobX, Styled Components, and Vite bundling</div>
+        </div>
+        <div class="monorepo-item">
+          <div class="folder">🖥️</div>
+          <div class="name">server/</div>
+          <div class="desc">Koa API server, Sequelize models, services, and background workers</div>
+        </div>
+        <div class="monorepo-item">
+          <div class="folder">🔗</div>
+          <div class="name">shared/</div>
+          <div class="desc">Shared types, utilities, editor (Prosemirror), and i18n</div>
+        </div>
+        <div class="monorepo-item">
+          <div class="folder">🔌</div>
+          <div class="name">plugins/</div>
+          <div class="desc">Auto-discovered extensions for auth, storage, analytics, integrations</div>
+        </div>
+        <div class="monorepo-item">
+          <div class="folder">🌍</div>
+          <div class="name">public/</div>
+          <div class="desc">Static assets: fonts, images, email templates, logos</div>
+        </div>
+        <div class="monorepo-item">
+          <div class="folder">🏗️</div>
+          <div class="name">build/</div>
+          <div class="desc">Compiled output for server, app, shared, and plugins</div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</body>
+</html>
