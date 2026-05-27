@@ -1,0 +1,28 @@
+# Staging environment — account-level config
+# Read by root terragrunt.hcl via find_in_parent_folders("account.hcl")
+#
+# BEFORE FIRST APPLY:
+#   1. Set account_id  → run: aws sts get-caller-identity --query Account --output text
+#   2. Set domain      → the DNS name you want Outline to be served from
+#   3. Set hosted_zone_id → the Route 53 hosted zone that owns the domain
+#                           run: aws route53 list-hosted-zones-by-name --dns-name example.com
+#
+# These three values are the only things you must supply manually.
+# Everything else is derived or managed by Terragrunt/Terraform.
+
+locals {
+  env            = "staging"
+  account_id     = get_aws_account_id()                # Reads from current AWS credentials
+  domain         = "staging.wiki.example.com"       # Subdomain you want Outline served on
+  hosted_zone_id = "Z1PA6795UKMFR9"                 # Route53 hosted zone for the apex domain
+
+  # Instance sizing — smaller than production for cost savings
+  rds_instance_class   = "db.t4g.medium"
+  redis_node_type      = "cache.t4g.medium"
+  ecs_web_cpu          = 512
+  ecs_web_memory       = 1024
+  ecs_worker_cpu       = 256
+  ecs_worker_memory    = 512
+  ecs_web_min_capacity = 1
+  ecs_web_max_capacity = 4
+}

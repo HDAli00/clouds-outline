@@ -18,6 +18,10 @@ data/*
 *.cert
 .history
 
+# Terraform / Terragrunt
+**/.terraform/
+**/.terragrunt-cache/
+
 # Yarn Berry
 .yarn/*
 !.yarn/patches

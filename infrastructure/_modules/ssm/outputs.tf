@@ -1,0 +1,22 @@
+# All parameter ARNs — referenced in ECS task definition secrets[] blocks
+output "secret_key_arn"           { value = aws_ssm_parameter.secret_key.arn }
+output "utils_secret_arn"         { value = aws_ssm_parameter.utils_secret.arn }
+output "database_url_arn"         { value = aws_ssm_parameter.database_url.arn }
+output "redis_url_arn"            { value = aws_ssm_parameter.redis_url.arn }
+output "app_url_arn"              { value = aws_ssm_parameter.app_url.arn }
+output "cdn_url_arn"              { value = aws_ssm_parameter.cdn_url.arn }
+output "aws_region_arn"           { value = aws_ssm_parameter.aws_region.arn }
+output "s3_upload_bucket_arn"     { value = aws_ssm_parameter.s3_upload_bucket.arn }
+output "s3_upload_bucket_url_arn" { value = aws_ssm_parameter.s3_upload_bucket_url.arn }
+output "smtp_host_arn"            { value = aws_ssm_parameter.smtp_host.arn }
+output "smtp_port_arn"            { value = aws_ssm_parameter.smtp_port.arn }
+output "smtp_from_email_arn"      { value = aws_ssm_parameter.smtp_from_email.arn }
+output "smtp_username_arn"        { value = aws_ssm_parameter.smtp_username.arn }
+output "smtp_password_arn"        { value = aws_ssm_parameter.smtp_password.arn }
+output "google_client_id_arn"     { value = aws_ssm_parameter.google_client_id.arn }
+output "google_client_secret_arn" { value = aws_ssm_parameter.google_client_secret.arn }
+output "slack_client_id_arn"      { value = aws_ssm_parameter.slack_client_id.arn }
+output "slack_client_secret_arn"  { value = aws_ssm_parameter.slack_client_secret.arn }
+output "oidc_client_id_arn"       { value = aws_ssm_parameter.oidc_client_id.arn }
+output "oidc_client_secret_arn"   { value = aws_ssm_parameter.oidc_client_secret.arn }
+output "ssm_prefix"               { value = local.prefix }
