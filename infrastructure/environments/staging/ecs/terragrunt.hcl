@@ -27,8 +27,13 @@ dependency "alb" {
   config_path  = "../alb"
   mock_outputs = { web_tg_arn = "arn:aws:elasticloadbalancing:us-east-1:000000000000:targetgroup/x/y" }
 }
-# SSM parameters are resolved inside the ECS module via data "aws_ssm_parameter"
-# using the path /${project}/${env}/VAR_NAME — no ARN outputs needed here.
+# SSM must be fully applied before ECS — the ECS module reads all SSM parameters
+# via data sources at plan time, so they must exist in AWS before ECS runs.
+dependency "ssm" {
+  config_path  = "../ssm"
+  mock_outputs = {}
+  mock_outputs_allowed_terraform_commands = ["init", "validate", "plan"]
+}
 
 terraform {
   source = "../../../_modules//ecs"
