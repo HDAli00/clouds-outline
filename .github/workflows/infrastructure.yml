@@ -158,11 +158,43 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Terragrunt apply — staging
+        id: apply
         working-directory: infrastructure/environments/staging
         run: |
+          set -o pipefail
           terragrunt run-all apply \
             --terragrunt-non-interactive \
-            --terragrunt-include-external-dependencies
+            --terragrunt-include-external-dependencies \
+            -no-color 2>&1 | tee apply-output.txt
+
+      - name: Upload apply output
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: staging-apply
+          path: infrastructure/environments/staging/apply-output.txt
+
+      - name: Post apply failure comment
+        uses: actions/github-script@v7
+        if: failure() && github.event_name == 'pull_request'
+        with:
+          script: |
+            const fs = require('fs');
+            let log = '';
+            try {
+              log = fs.readFileSync('infrastructure/environments/staging/apply-output.txt', 'utf8');
+            } catch (e) {
+              log = 'No apply output was captured (the step failed before Terragrunt produced output).';
+            }
+            // Keep the last ~6000 chars — the error is at the tail.
+            const tail = log.length > 6000 ? log.slice(-6000) : log;
+            const body = `## ❌ Staging Apply failed\n\nLast lines of \`terragrunt run-all apply\` output:\n\n\`\`\`\n${tail}\n\`\`\`\n\n> Full output saved as workflow artifact \`staging-apply\`.`;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body
+            });
 
   # ────────────────────────────────────────────────────────────────────────────
   # PRODUCTION — Plan on every PR (diff preview only, no apply).
