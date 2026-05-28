@@ -79,52 +79,52 @@ variable "cloudfront_domain" {
 variable "smtp_username" {
   type      = string
   sensitive = true
-  default   = ""
+  default   = "placeholder"
 }
 variable "smtp_password" {
   type      = string
   sensitive = true
-  default   = ""
+  default   = "placeholder"
 }
 variable "google_client_id" {
   type      = string
   sensitive = true
-  default   = ""
+  default   = "placeholder"
 }
 variable "google_client_secret" {
   type      = string
   sensitive = true
-  default   = ""
+  default   = "placeholder"
 }
 variable "slack_client_id" {
   type      = string
   sensitive = true
-  default   = ""
+  default   = "placeholder"
 }
 variable "slack_client_secret" {
   type      = string
   sensitive = true
-  default   = ""
+  default   = "placeholder"
 }
 variable "oidc_client_id" {
   type      = string
   sensitive = true
-  default   = ""
+  default   = "placeholder"
 }
 variable "oidc_client_secret" {
   type      = string
   sensitive = true
-  default   = ""
+  default   = "placeholder"
 }
 variable "oidc_auth_uri" {
   type    = string
-  default = ""
+  default = "placeholder"
 }
 variable "oidc_token_uri" {
   type    = string
-  default = ""
+  default = "placeholder"
 }
 variable "oidc_userinfo_uri" {
   type    = string
-  default = ""
+  default = "placeholder"
 }
