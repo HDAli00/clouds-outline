@@ -26,5 +26,6 @@ inputs = {
   instance_class     = local.account.locals.rds_instance_class
   subnet_ids         = dependency.vpc.outputs.private_data_subnet_ids
   security_group_ids = [dependency.security_groups.outputs.rds_sg_id]
-  multi_az           = false  # staging: single AZ to save cost
+  multi_az                 = false  # staging: single AZ to save cost
+  backup_retention_period  = 0     # Free Tier restriction: max 0 days
 }

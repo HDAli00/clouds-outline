@@ -15,6 +15,10 @@ variable "multi_az" {
   type    = bool
   default = true
 }
+variable "backup_retention_period" {
+  type    = number
+  default = 7
+}
 variable "allocated_storage" {
   type    = number
   default = 100
