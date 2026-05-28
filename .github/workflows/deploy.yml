@@ -1,0 +1,289 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "infrastructure/**"
+      - ".github/workflows/infrastructure.yml"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to deploy to"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - staging
+          - production
+      image_tag:
+        description: "Image SHA tag to deploy (for rollback, e.g. sha-a1b2c3). Leave blank for latest build."
+        required: false
+        default: ""
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: eu-west-1
+  AWS_ACCOUNT_ID: "004947744285"
+  STAGING_REPO: outline-staging
+  PRODUCTION_REPO: outline-production
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Build once — push versioned image to staging ECR only.
+# Production always promotes the exact same image from staging; never rebuilds.
+# Skipped on manual rollback (image_tag is provided).
+# ──────────────────────────────────────────────────────────────────────────────
+jobs:
+  build:
+    name: Build & Push to Staging ECR
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.image_tag == '')
+    runs-on: ubuntu-latest
+    outputs:
+      image-tag: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.STAGING_REPO }}
+          tags: |
+            type=sha,prefix=sha-,format=short
+            type=raw,value=latest
+
+      - name: Build base image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.base
+          load: true
+          tags: outline-base:local
+          cache-from: type=gha,scope=base
+          cache-to: type=gha,mode=max,scope=base
+
+      - name: Build and push to staging ECR
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          build-args: BASE_IMAGE=outline-base:local
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha,scope=app
+          cache-to: type=gha,mode=max,scope=app
+
+  # ──────────────────────────────────────────────────────────────────────────────
+  # Deploy staging
+  # Runs automatically on push (after build) or manually for rollback.
+  # On rollback: image_tag is provided, build job is skipped — deploys existing image.
+  # ──────────────────────────────────────────────────────────────────────────────
+  deploy-staging:
+    name: Deploy / Staging
+    needs: build
+    if: |
+      always() &&
+      (needs.build.result == 'success' || needs.build.result == 'skipped') &&
+      (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.environment == 'staging'))
+    runs-on: ubuntu-latest
+    environment: staging
+    concurrency:
+      group: deploy-staging
+      cancel-in-progress: false
+    env:
+      IMAGE_TAG: ${{ inputs.image_tag != '' && inputs.image_tag || needs.build.outputs.image-tag }}
+    steps:
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify image exists in staging ECR
+        run: |
+          aws ecr describe-images \
+            --repository-name ${{ env.STAGING_REPO }} \
+            --image-ids imageTag=${{ env.IMAGE_TAG }} \
+            --query 'imageDetails[0].imageTags' \
+            --output text
+
+      - name: Register new web task definition
+        id: task-def-web
+        run: |
+          IMAGE="${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.STAGING_REPO }}:${{ env.IMAGE_TAG }}"
+          TASK_DEF=$(aws ecs describe-task-definition \
+            --task-definition outline-staging-web \
+            --query taskDefinition)
+          NEW_TASK_DEF=$(echo "$TASK_DEF" | jq --arg IMAGE "$IMAGE" \
+            '.containerDefinitions[0].image = $IMAGE
+            | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
+          echo "$NEW_TASK_DEF" > task-def-web.json
+          NEW_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file://task-def-web.json \
+            --query taskDefinition.taskDefinitionArn \
+            --output text)
+          echo "arn=$NEW_ARN" >> "$GITHUB_OUTPUT"
+
+      - name: Register new worker task definition
+        id: task-def-worker
+        run: |
+          IMAGE="${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.STAGING_REPO }}:${{ env.IMAGE_TAG }}"
+          TASK_DEF=$(aws ecs describe-task-definition \
+            --task-definition outline-staging-worker \
+            --query taskDefinition)
+          NEW_TASK_DEF=$(echo "$TASK_DEF" | jq --arg IMAGE "$IMAGE" \
+            '.containerDefinitions[0].image = $IMAGE
+            | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
+          echo "$NEW_TASK_DEF" > task-def-worker.json
+          NEW_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file://task-def-worker.json \
+            --query taskDefinition.taskDefinitionArn \
+            --output text)
+          echo "arn=$NEW_ARN" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy web service
+        run: |
+          aws ecs update-service \
+            --cluster outline-staging \
+            --service outline-staging-web \
+            --task-definition ${{ steps.task-def-web.outputs.arn }}
+
+      - name: Deploy worker service
+        run: |
+          aws ecs update-service \
+            --cluster outline-staging \
+            --service outline-staging-worker \
+            --task-definition ${{ steps.task-def-worker.outputs.arn }}
+
+      - name: Wait for services to stabilise
+        run: |
+          aws ecs wait services-stable \
+            --cluster outline-staging \
+            --services outline-staging-web outline-staging-worker
+
+      - name: Print deployed image
+        run: echo "Staged ${{ env.STAGING_REPO }}:${{ env.IMAGE_TAG }}"
+
+  # ──────────────────────────────────────────────────────────────────────────────
+  # Deploy production
+  # Copies the exact image from staging ECR into production ECR by manifest digest
+  # (bit-for-bit identical — not a rebuild). Gated by GitHub Environment approval.
+  # On rollback: skips the copy step if the SHA already exists in production ECR.
+  # ──────────────────────────────────────────────────────────────────────────────
+  deploy-production:
+    name: Deploy / Production
+    needs: [build, deploy-staging]
+    if: |
+      always() &&
+      needs.deploy-staging.result == 'success' &&
+      (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.environment == 'production'))
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    env:
+      IMAGE_TAG: ${{ inputs.image_tag != '' && inputs.image_tag || needs.build.outputs.image-tag }}
+    steps:
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Promote image from staging ECR to production ECR
+        run: |
+          MANIFEST=$(aws ecr batch-get-image \
+            --repository-name ${{ env.STAGING_REPO }} \
+            --image-ids imageTag=${{ env.IMAGE_TAG }} \
+            --query 'images[0].imageManifest' \
+            --output text)
+
+          if [ -z "$MANIFEST" ]; then
+            echo "ERROR: Image ${{ env.IMAGE_TAG }} not found in staging ECR"
+            exit 1
+          fi
+
+          # Push SHA tag (|| true — non-fatal if already exists, e.g. on rollback)
+          aws ecr put-image \
+            --repository-name ${{ env.PRODUCTION_REPO }} \
+            --image-tag ${{ env.IMAGE_TAG }} \
+            --image-manifest "$MANIFEST" || true
+
+          # Always update :latest pointer in production ECR
+          aws ecr put-image \
+            --repository-name ${{ env.PRODUCTION_REPO }} \
+            --image-tag latest \
+            --image-manifest "$MANIFEST"
+
+      - name: Register new web task definition
+        id: task-def-web
+        run: |
+          IMAGE="${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.PRODUCTION_REPO }}:${{ env.IMAGE_TAG }}"
+          TASK_DEF=$(aws ecs describe-task-definition \
+            --task-definition outline-production-web \
+            --query taskDefinition)
+          NEW_TASK_DEF=$(echo "$TASK_DEF" | jq --arg IMAGE "$IMAGE" \
+            '.containerDefinitions[0].image = $IMAGE
+            | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
+          echo "$NEW_TASK_DEF" > task-def-web.json
+          NEW_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file://task-def-web.json \
+            --query taskDefinition.taskDefinitionArn \
+            --output text)
+          echo "arn=$NEW_ARN" >> "$GITHUB_OUTPUT"
+
+      - name: Register new worker task definition
+        id: task-def-worker
+        run: |
+          IMAGE="${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.PRODUCTION_REPO }}:${{ env.IMAGE_TAG }}"
+          TASK_DEF=$(aws ecs describe-task-definition \
+            --task-definition outline-production-worker \
+            --query taskDefinition)
+          NEW_TASK_DEF=$(echo "$TASK_DEF" | jq --arg IMAGE "$IMAGE" \
+            '.containerDefinitions[0].image = $IMAGE
+            | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
+          echo "$NEW_TASK_DEF" > task-def-worker.json
+          NEW_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file://task-def-worker.json \
+            --query taskDefinition.taskDefinitionArn \
+            --output text)
+          echo "arn=$NEW_ARN" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy web service
+        run: |
+          aws ecs update-service \
+            --cluster outline-production \
+            --service outline-production-web \
+            --task-definition ${{ steps.task-def-web.outputs.arn }}
+
+      - name: Deploy worker service
+        run: |
+          aws ecs update-service \
+            --cluster outline-production \
+            --service outline-production-worker \
+            --task-definition ${{ steps.task-def-worker.outputs.arn }}
+
+      - name: Wait for services to stabilise
+        run: |
+          aws ecs wait services-stable \
+            --cluster outline-production \
+            --services outline-production-web outline-production-worker
+
+      - name: Print deployed image
+        run: echo "Deployed ${{ env.PRODUCTION_REPO }}:${{ env.IMAGE_TAG }} to production"

@@ -1,5 +1,5 @@
 resource "aws_ecr_repository" "this" {
-  name                 = "${var.project}"
+  name                 = "${var.project}-${var.env}"
   image_tag_mutability = "MUTABLE"
 
   image_scanning_configuration {
@@ -10,7 +10,7 @@ resource "aws_ecr_repository" "this" {
     encryption_type = "AES256"
   }
 
-  tags = { Name = "${var.project}" }
+  tags = { Name = "${var.project}-${var.env}" }
 }
 
 resource "aws_ecr_lifecycle_policy" "this" {

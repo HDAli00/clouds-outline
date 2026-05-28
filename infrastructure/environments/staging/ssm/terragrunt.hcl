@@ -12,9 +12,15 @@ dependency "s3" {
   mock_outputs = { uploads_bucket_id = "outline-staging-uploads" }
 }
 
-dependency "cloudfront" {
-  config_path  = "../cloudfront"
-  mock_outputs = { distribution_domain = "d0000000000000.cloudfront.net" }
+# CloudFront dependency removed — no domain yet. Re-add when a domain is configured:
+# dependency "cloudfront" {
+#   config_path  = "../cloudfront"
+#   mock_outputs = { distribution_domain = "d0000000000000.cloudfront.net" }
+# }
+
+dependency "alb" {
+  config_path  = "../alb"
+  mock_outputs = { alb_dns_name = "outline-staging-alb.eu-west-1.elb.amazonaws.com" }
   mock_outputs_allowed_terraform_commands = ["init", "validate", "plan"]
 }
 
@@ -64,9 +70,10 @@ inputs = {
   project = local.common.locals.project
   env     = local.account.locals.env
 
-  # App URLs
-  app_url           = "https://${local.account.locals.domain}"
-  cloudfront_domain = dependency.cloudfront.outputs.distribution_domain
+  # App URLs — using ALB DNS directly (no domain/CloudFront yet)
+  app_url           = "http://${dependency.alb.outputs.alb_dns_name}"
+  cloudfront_domain = ""  # empty — SSM module falls back to cdn_url
+  cdn_url           = "http://${dependency.alb.outputs.alb_dns_name}"
 
   # AWS
   aws_region           = local.common.locals.aws_region
@@ -76,7 +83,7 @@ inputs = {
   # SMTP — Amazon SES. SMTP_USERNAME/PASSWORD are SES SMTP credentials set via CLI.
   smtp_host       = "email-smtp.${local.common.locals.aws_region}.amazonaws.com"
   smtp_port       = "587"
-  smtp_from_email = "noreply@${local.account.locals.domain}"
+  smtp_from_email = "noreply@localhost"  # placeholder — update when domain is configured
 
   # RDS components — module constructs DATABASE_URL internally
   rds_username = dependency.rds.outputs.username

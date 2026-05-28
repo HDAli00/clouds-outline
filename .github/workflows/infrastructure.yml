@@ -100,8 +100,23 @@ jobs:
           script: |
             const fs = require('fs');
             const plan = fs.readFileSync('infrastructure/environments/staging/plan-output.txt', 'utf8');
-            const truncated = plan.length > 60000 ? plan.slice(-60000) + '\n...(truncated)' : plan;
-            const body = `## Staging Plan\n\`\`\`terraform\n${truncated}\n\`\`\``;
+
+            // Extract summary line e.g. "Plan: 4 to add, 1 to change, 0 to destroy."
+            const summaryMatch = plan.match(/Plan: .+/);
+            const summary = summaryMatch ? summaryMatch[0] : 'No changes.';
+
+            // Extract individual resource action lines (+ add, ~ update, - destroy, -/+ replace)
+            const resourceLines = [...plan.matchAll(/^\s+[#] (.+) will be (created|updated|destroyed|replaced)/gm)]
+              .map(m => {
+                const action = m[2] === 'created' ? '+ create' : m[2] === 'destroyed' ? '- destroy' : m[2] === 'replaced' ? '-/+ replace' : '~ update';
+                return `  ${action}: \`${m[1]}\``;
+              });
+
+            const resourceList = resourceLines.length > 0
+              ? resourceLines.join('\n')
+              : '  No resource changes.';
+
+            const body = `## Staging Plan\n**${summary}**\n\n${resourceList}\n\n> Full plan saved as workflow artifact \`staging-plan\``;
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
@@ -204,8 +219,21 @@ jobs:
           script: |
             const fs = require('fs');
             const plan = fs.readFileSync('infrastructure/environments/production/plan-output.txt', 'utf8');
-            const truncated = plan.length > 60000 ? plan.slice(-60000) + '\n...(truncated)' : plan;
-            const body = `## Production Plan *(apply will run after merge)*\n\`\`\`terraform\n${truncated}\n\`\`\``;
+
+            const summaryMatch = plan.match(/Plan: .+/);
+            const summary = summaryMatch ? summaryMatch[0] : 'No changes.';
+
+            const resourceLines = [...plan.matchAll(/^\s+[#] (.+) will be (created|updated|destroyed|replaced)/gm)]
+              .map(m => {
+                const action = m[2] === 'created' ? '+ create' : m[2] === 'destroyed' ? '- destroy' : m[2] === 'replaced' ? '-/+ replace' : '~ update';
+                return `  ${action}: \`${m[1]}\``;
+              });
+
+            const resourceList = resourceLines.length > 0
+              ? resourceLines.join('\n')
+              : '  No resource changes.';
+
+            const body = `## Production Plan *(apply will run after merge)*\n**${summary}**\n\n${resourceList}\n\n> Full plan saved as workflow artifact \`production-plan\``;
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
