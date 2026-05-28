@@ -83,6 +83,9 @@ jobs:
           terragrunt run-all plan \
             --terragrunt-non-interactive \
             --terragrunt-include-external-dependencies \
+            --terragrunt-exclude-dir acm \
+            --terragrunt-exclude-dir cloudfront \
+            --terragrunt-exclude-dir route53 \
             -no-color 2>&1 | tee plan-output.txt
           echo "exitcode=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
 
@@ -162,7 +165,10 @@ jobs:
         run: |
           terragrunt run-all apply \
             --terragrunt-non-interactive \
-            --terragrunt-include-external-dependencies
+            --terragrunt-include-external-dependencies \
+            --terragrunt-exclude-dir acm \
+            --terragrunt-exclude-dir cloudfront \
+            --terragrunt-exclude-dir route53
 
   # ────────────────────────────────────────────────────────────────────────────
   # PRODUCTION — Plan on every PR (diff preview only, no apply).
@@ -202,6 +208,9 @@ jobs:
           terragrunt run-all plan \
             --terragrunt-non-interactive \
             --terragrunt-include-external-dependencies \
+            --terragrunt-exclude-dir acm \
+            --terragrunt-exclude-dir cloudfront \
+            --terragrunt-exclude-dir route53 \
             -no-color 2>&1 | tee plan-output.txt
           echo "exitcode=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
 
@@ -275,4 +284,7 @@ jobs:
         run: |
           terragrunt run-all apply \
             --terragrunt-non-interactive \
-            --terragrunt-include-external-dependencies
+            --terragrunt-include-external-dependencies \
+            --terragrunt-exclude-dir acm \
+            --terragrunt-exclude-dir cloudfront \
+            --terragrunt-exclude-dir route53
