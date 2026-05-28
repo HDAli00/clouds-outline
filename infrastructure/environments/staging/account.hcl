@@ -26,7 +26,7 @@ locals {
   rds_instance_class        = "db.t3.micro"
   rds_allocated_storage     = 20
   rds_max_allocated_storage = 20  # disable autoscaling on free tier
-  redis_node_type           = "cache.t2.micro"
+  redis_node_type           = "cache.t3.micro"
   ecs_web_cpu          = 512
   ecs_web_memory       = 1024
   ecs_worker_cpu       = 256
