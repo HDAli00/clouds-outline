@@ -1,0 +1,250 @@
+name: Infrastructure
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "infrastructure/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "infrastructure/**"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to target"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - staging
+          - production
+      action:
+        description: "Action to run"
+        required: true
+        default: "plan"
+        type: choice
+        options:
+          - plan
+          - apply
+
+permissions:
+  id-token: write   # Required for OIDC
+  contents: read
+  pull-requests: write  # Required to post plan output as PR comment
+
+env:
+  TERRAGRUNT_VERSION: "0.67.16"
+  TERRAFORM_VERSION: "1.11.4"
+  AWS_REGION: "eu-west-1"
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Reusable setup steps extracted via a composite-style run sequence.
+# Each job installs Terraform + Terragrunt and configures AWS via OIDC.
+# ──────────────────────────────────────────────────────────────────────────────
+jobs:
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # STAGING — Plan then Apply on every PR run.
+  # Staging is a live preview environment; changes apply immediately so the
+  # branch is always tested against real AWS before merging.
+  # ────────────────────────────────────────────────────────────────────────────
+  plan-staging:
+    name: Plan / Staging
+    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.environment == 'staging')
+    runs-on: ubuntu-latest
+    outputs:
+      plan-exitcode: ${{ steps.plan.outputs.exitcode }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: Setup Terragrunt
+        run: |
+          curl -sSL "https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TERRAGRUNT_VERSION }}/terragrunt_linux_amd64" \
+            -o /usr/local/bin/terragrunt
+          chmod +x /usr/local/bin/terragrunt
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terragrunt plan — staging
+        id: plan
+        working-directory: infrastructure/environments/staging
+        run: |
+          terragrunt run-all plan \
+            --terragrunt-non-interactive \
+            --terragrunt-include-external-dependencies \
+            -no-color 2>&1 | tee plan-output.txt
+          echo "exitcode=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload plan output
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: staging-plan
+          path: infrastructure/environments/staging/plan-output.txt
+
+      - name: Post plan comment
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('infrastructure/environments/staging/plan-output.txt', 'utf8');
+            const truncated = plan.length > 60000 ? plan.slice(-60000) + '\n...(truncated)' : plan;
+            const body = `## Staging Plan\n\`\`\`terraform\n${truncated}\n\`\`\``;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body
+            });
+
+  apply-staging:
+    name: Apply / Staging
+    needs: plan-staging
+    if: |
+      always() &&
+      needs.plan-staging.result == 'success' &&
+      (github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.environment == 'staging' && inputs.action == 'apply'))
+    runs-on: ubuntu-latest
+    environment: staging
+    concurrency:
+      group: terraform-staging
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: Setup Terragrunt
+        run: |
+          curl -sSL "https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TERRAGRUNT_VERSION }}/terragrunt_linux_amd64" \
+            -o /usr/local/bin/terragrunt
+          chmod +x /usr/local/bin/terragrunt
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terragrunt apply — staging
+        working-directory: infrastructure/environments/staging
+        run: |
+          terragrunt run-all apply \
+            --terragrunt-non-interactive \
+            --terragrunt-include-external-dependencies
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # PRODUCTION — Plan on every PR (diff preview only, no apply).
+  # Apply only on merge to main, gated behind manual approval.
+  # Configure a GitHub Environment named "production" with required reviewers
+  # in repo Settings → Environments to enforce the approval gate.
+  # ────────────────────────────────────────────────────────────────────────────
+  plan-production:
+    name: Plan / Production
+    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.environment == 'production')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: Setup Terragrunt
+        run: |
+          curl -sSL "https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TERRAGRUNT_VERSION }}/terragrunt_linux_amd64" \
+            -o /usr/local/bin/terragrunt
+          chmod +x /usr/local/bin/terragrunt
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terragrunt plan — production
+        id: plan
+        working-directory: infrastructure/environments/production
+        run: |
+          terragrunt run-all plan \
+            --terragrunt-non-interactive \
+            --terragrunt-include-external-dependencies \
+            -no-color 2>&1 | tee plan-output.txt
+          echo "exitcode=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload plan output
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: production-plan
+          path: infrastructure/environments/production/plan-output.txt
+
+      - name: Post plan comment
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('infrastructure/environments/production/plan-output.txt', 'utf8');
+            const truncated = plan.length > 60000 ? plan.slice(-60000) + '\n...(truncated)' : plan;
+            const body = `## Production Plan *(apply will run after merge)*\n\`\`\`terraform\n${truncated}\n\`\`\``;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body
+            });
+
+  apply-production:
+    name: Apply / Production
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.environment == 'production' && inputs.action == 'apply')
+    runs-on: ubuntu-latest
+    environment: production          # ← pauses here until a reviewer approves
+    concurrency:
+      group: terraform-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: Setup Terragrunt
+        run: |
+          curl -sSL "https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TERRAGRUNT_VERSION }}/terragrunt_linux_amd64" \
+            -o /usr/local/bin/terragrunt
+          chmod +x /usr/local/bin/terragrunt
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terragrunt apply — production
+        working-directory: infrastructure/environments/production
+        run: |
+          terragrunt run-all apply \
+            --terragrunt-non-interactive \
+            --terragrunt-include-external-dependencies
