@@ -71,6 +71,21 @@ resource "aws_ssm_parameter" "smtp_from_email" {
   type  = "String"
   value = var.smtp_from_email
   tags  = { Env = var.env }
+
+  lifecycle {
+    ignore_changes = [value]  # Prevent Terraform from resetting manually updated email address
+  }
+}
+
+resource "aws_ssm_parameter" "smtp_reply_email" {
+  name  = "${local.prefix}/SMTP_REPLY_EMAIL"
+  type  = "String"
+  value = var.smtp_reply_email
+  tags  = { Env = var.env }
+
+  lifecycle {
+    ignore_changes = [value]  # Prevent Terraform from resetting manually updated email address
+  }
 }
 
 # ---------------------------------------------------------------------------
