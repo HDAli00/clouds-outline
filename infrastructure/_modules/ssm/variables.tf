@@ -23,11 +23,6 @@ variable "smtp_from_email" {
   type    = string
   default = ""
 }
-variable "smtp_reply_email" {
-  type    = string
-  default = ""
-}
-
 # --- Secrets (SSM SecureString — set once on first apply, lifecycle.ignore_changes prevents overwrites) ---
 # secret_key / utils_secret MUST be set manually via CLI after first apply (truly random, never auto-generated).
 # database_url / redis_url are auto-constructed from RDS/ElastiCache outputs in the env wiring files.

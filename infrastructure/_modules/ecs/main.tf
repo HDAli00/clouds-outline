@@ -32,7 +32,6 @@ locals {
     "SMTP_HOST",
     "SMTP_PORT",
     "SMTP_FROM_EMAIL",
-    "SMTP_REPLY_EMAIL",
     "SMTP_USERNAME",
     "SMTP_PASSWORD",
   ]
