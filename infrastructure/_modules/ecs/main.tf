@@ -56,7 +56,7 @@ locals {
     { name = "FILE_STORAGE",             value = "s3" },
     { name = "AWS_S3_ACL",               value = "private" },
     { name = "AWS_S3_FORCE_PATH_STYLE",  value = "false" },  # real AWS S3, not compatible endpoint
-    { name = "PGSSLMODE",                value = "require" }, # RDS requires TLS
+    { name = "PGSSLMODE",                value = "disable" }, # private VPC — no SSL needed between ECS and RDS
     { name = "FORCE_HTTPS",              value = "false" },   # ALB/CloudFront handles TLS termination
   ]
 }
