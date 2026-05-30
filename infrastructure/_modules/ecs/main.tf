@@ -198,6 +198,11 @@ resource "aws_ecs_service" "web" {
   health_check_grace_period_seconds  = 120
   deployment_minimum_healthy_percent = 50
   deployment_maximum_percent         = 200
+  
+  # TODO: Add after first stable deploy:
+  # lifecycle {
+  #   ignore_changes = [desired_count]
+  # }
 
   tags = { Name = "${var.project}-${var.env}-web-service" }
 }
