@@ -16,9 +16,17 @@ locals {
   domain         = "staging.wiki.example.com"       # Subdomain you want Outline served on
   hosted_zone_id = "Z1PA6795UKMFR9"                 # Route53 hosted zone for the apex domain
 
-  # Instance sizing — smaller than production for cost savings
-  rds_instance_class   = "db.t4g.medium"
-  redis_node_type      = "cache.t4g.medium"
+  # CIDR blocks — staging uses 10.0.x.x range
+  vpc_cidr                  = "10.0.0.0/16"
+  public_subnet_cidrs       = ["10.0.1.0/24", "10.0.2.0/24"]
+  private_app_subnet_cidrs  = ["10.0.10.0/24", "10.0.11.0/24"]
+  private_data_subnet_cidrs = ["10.0.20.0/24", "10.0.21.0/24"]
+
+  # Instance sizing — free tier eligible (db.t3.micro = 750h/month free, 20 GB)
+  rds_instance_class        = "db.t3.micro"
+  rds_allocated_storage     = 20
+  rds_max_allocated_storage = 20  # disable autoscaling on free tier
+  redis_node_type           = "cache.t3.micro"
   ecs_web_cpu          = 512
   ecs_web_memory       = 1024
   ecs_worker_cpu       = 256

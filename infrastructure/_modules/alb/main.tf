@@ -39,7 +39,9 @@ resource "aws_lb_target_group" "web" {
 }
 
 # ---------------------------------------------------------------------------
-# HTTP listener — redirect all traffic to HTTPS
+# HTTP listener
+# When no certificate is provided: forward directly to the web target group.
+# When a certificate is provided: redirect to HTTPS.
 # ---------------------------------------------------------------------------
 resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.this.arn
@@ -47,21 +49,26 @@ resource "aws_lb_listener" "http" {
   protocol          = "HTTP"
 
   default_action {
-    type = "redirect"
-    redirect {
-      port        = "443"
-      protocol    = "HTTPS"
-      status_code = "HTTP_301"
+    type             = var.certificate_arn != null ? "redirect" : "forward"
+    target_group_arn = var.certificate_arn == null ? aws_lb_target_group.web.arn : null
+
+    dynamic "redirect" {
+      for_each = var.certificate_arn != null ? [1] : []
+      content {
+        port        = "443"
+        protocol    = "HTTPS"
+        status_code = "HTTP_301"
+      }
     }
   }
 }
 
 # ---------------------------------------------------------------------------
-# HTTPS listener — route to web target group
-# WebSocket (/realtime) and Collaboration (/collaboration) are handled by the
-# same target group since they run in the same Web Process container.
+# HTTPS listener — only created when a certificate ARN is provided.
 # ---------------------------------------------------------------------------
 resource "aws_lb_listener" "https" {
+  count = var.certificate_arn != null ? 1 : 0
+
   load_balancer_arn = aws_lb.this.arn
   port              = 443
   protocol          = "HTTPS"

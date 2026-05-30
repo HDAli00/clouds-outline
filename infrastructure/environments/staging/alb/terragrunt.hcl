@@ -15,11 +15,11 @@ dependency "security_groups" {
   config_path  = "../security-groups"
   mock_outputs = { alb_sg_id = "sg-0" }
 }
-dependency "acm" {
-  config_path  = "../acm"
-  mock_outputs = { certificate_arn = "arn:aws:acm:us-east-1:000000000000:certificate/00000000-0000-0000-0000-000000000000" }
-  mock_outputs_allowed_terraform_commands = ["init", "validate", "plan"]
-}
+# ACM dependency removed — no domain yet. Re-add when a real domain is configured:
+# dependency "acm" {
+#   config_path  = "../acm"
+#   mock_outputs = { certificate_arn = "arn:aws:acm:us-east-1:000000000000:certificate/00000000" }
+# }
 
 terraform {
   source = "../../../_modules//alb"
@@ -31,5 +31,5 @@ inputs = {
   vpc_id            = dependency.vpc.outputs.vpc_id
   public_subnet_ids = dependency.vpc.outputs.public_subnet_ids
   alb_sg_id         = dependency.security_groups.outputs.alb_sg_id
-  certificate_arn   = dependency.acm.outputs.certificate_arn
+  # certificate_arn omitted — ALB will serve HTTP only until a domain is configured
 }

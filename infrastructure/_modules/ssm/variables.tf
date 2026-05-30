@@ -23,7 +23,6 @@ variable "smtp_from_email" {
   type    = string
   default = ""
 }
-
 # --- Secrets (SSM SecureString — set once on first apply, lifecycle.ignore_changes prevents overwrites) ---
 # secret_key / utils_secret MUST be set manually via CLI after first apply (truly random, never auto-generated).
 # database_url / redis_url are auto-constructed from RDS/ElastiCache outputs in the env wiring files.
@@ -79,52 +78,52 @@ variable "cloudfront_domain" {
 variable "smtp_username" {
   type      = string
   sensitive = true
-  default   = ""
+  default   = "placeholder"
 }
 variable "smtp_password" {
   type      = string
   sensitive = true
-  default   = ""
+  default   = "placeholder"
 }
 variable "google_client_id" {
   type      = string
   sensitive = true
-  default   = ""
+  default   = "placeholder"
 }
 variable "google_client_secret" {
   type      = string
   sensitive = true
-  default   = ""
+  default   = "placeholder"
 }
 variable "slack_client_id" {
   type      = string
   sensitive = true
-  default   = ""
+  default   = "placeholder"
 }
 variable "slack_client_secret" {
   type      = string
   sensitive = true
-  default   = ""
+  default   = "placeholder"
 }
 variable "oidc_client_id" {
   type      = string
   sensitive = true
-  default   = ""
+  default   = "placeholder"
 }
 variable "oidc_client_secret" {
   type      = string
   sensitive = true
-  default   = ""
+  default   = "placeholder"
 }
 variable "oidc_auth_uri" {
   type    = string
-  default = ""
+  default = "placeholder"
 }
 variable "oidc_token_uri" {
   type    = string
-  default = ""
+  default = "placeholder"
 }
 variable "oidc_userinfo_uri" {
   type    = string
-  default = ""
+  default = "placeholder"
 }

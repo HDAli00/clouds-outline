@@ -6,7 +6,7 @@ resource "aws_elasticache_subnet_group" "this" {
 
 resource "aws_elasticache_replication_group" "this" {
   replication_group_id = "${var.project}-${var.env}-redis"
-  description          = "Outline ${var.env} Redis — Bull queues, Socket.IO pub/sub, Y.js sync"
+  description          = "Outline ${var.env} Redis - Bull queues, Socket.IO pub/sub, Y.js sync"
 
   engine               = "redis"
   engine_version       = "7.1"
@@ -18,6 +18,7 @@ resource "aws_elasticache_replication_group" "this" {
 
   at_rest_encryption_enabled = true
   transit_encryption_enabled = true
+  transit_encryption_mode    = "preferred"  # accepts both TLS and plain during migration
 
   automatic_failover_enabled = var.num_replicas > 0
 

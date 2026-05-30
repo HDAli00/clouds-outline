@@ -14,9 +14,9 @@ terraform {
 inputs = {
   project                   = local.common.locals.project
   env                       = local.account.locals.env
-  vpc_cidr                  = local.common.locals.vpc_cidr
+  vpc_cidr                  = local.account.locals.vpc_cidr
   azs                       = local.common.locals.azs
-  public_subnet_cidrs       = local.common.locals.public_subnet_cidrs
-  private_app_subnet_cidrs  = local.common.locals.private_app_subnet_cidrs
-  private_data_subnet_cidrs = local.common.locals.private_data_subnet_cidrs
+  public_subnet_cidrs       = local.account.locals.public_subnet_cidrs
+  private_app_subnet_cidrs  = local.account.locals.private_app_subnet_cidrs
+  private_data_subnet_cidrs = local.account.locals.private_data_subnet_cidrs
 }

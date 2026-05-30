@@ -9,7 +9,7 @@ locals {
   # Construct URLs from components when provided, otherwise fall back to the
   # pre-built string variables. This avoids Terragrunt dependency.* interpolation
   # issues in wiring files.
-  database_url = var.rds_endpoint != "" ? "postgres://${var.rds_username}:${var.rds_password}@${var.rds_endpoint}/${var.rds_dbname}?sslmode=require" : var.database_url
+  database_url = var.rds_endpoint != "" ? "postgres://${var.rds_username}:${var.rds_password}@${var.rds_endpoint}/${var.rds_dbname}?sslmode=no-verify" : var.database_url
   redis_url    = var.elasticache_endpoint != "" ? "rediss://${var.elasticache_endpoint}:6379" : var.redis_url
   cdn_url      = var.cloudfront_domain != "" ? "https://${var.cloudfront_domain}" : var.cdn_url
 }
@@ -71,7 +71,12 @@ resource "aws_ssm_parameter" "smtp_from_email" {
   type  = "String"
   value = var.smtp_from_email
   tags  = { Env = var.env }
+
+  lifecycle {
+    ignore_changes = [value]  # Prevent Terraform from resetting manually updated email address
+  }
 }
+
 
 # ---------------------------------------------------------------------------
 # Secrets — SSM SecureString (encrypted with default KMS key)

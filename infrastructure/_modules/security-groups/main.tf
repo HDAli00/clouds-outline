@@ -1,7 +1,7 @@
 # sg-alb: public-facing, allows HTTP/HTTPS from anywhere
 resource "aws_security_group" "alb" {
   name        = "${var.project}-${var.env}-sg-alb"
-  description = "ALB — allow HTTP/HTTPS from internet"
+  description = "ALB - allow HTTP/HTTPS from internet"
   vpc_id      = var.vpc_id
 
   ingress {
@@ -31,7 +31,7 @@ resource "aws_security_group" "alb" {
 # sg-fargate: ECS tasks — only allow traffic from the ALB on port 3000
 resource "aws_security_group" "fargate" {
   name        = "${var.project}-${var.env}-sg-fargate"
-  description = "ECS Fargate tasks — allow port 3000 from ALB only"
+  description = "ECS Fargate tasks - allow port 3000 from ALB only"
   vpc_id      = var.vpc_id
 
   ingress {
@@ -56,7 +56,7 @@ resource "aws_security_group" "fargate" {
 # sg-rds: PostgreSQL — only from Fargate tasks
 resource "aws_security_group" "rds" {
   name        = "${var.project}-${var.env}-sg-rds"
-  description = "RDS PostgreSQL — allow 5432 from Fargate only"
+  description = "RDS PostgreSQL - allow 5432 from Fargate only"
   vpc_id      = var.vpc_id
 
   ingress {
@@ -80,7 +80,7 @@ resource "aws_security_group" "rds" {
 # sg-redis: ElastiCache Redis — only from Fargate tasks
 resource "aws_security_group" "redis" {
   name        = "${var.project}-${var.env}-sg-redis"
-  description = "ElastiCache Redis — allow 6379 from Fargate only"
+  description = "ElastiCache Redis - allow 6379 from Fargate only"
   vpc_id      = var.vpc_id
 
   ingress {
