@@ -34,6 +34,15 @@ locals {
     "SMTP_FROM_EMAIL",
     "SMTP_USERNAME",
     "SMTP_PASSWORD",
+    "GOOGLE_CLIENT_ID",
+    "GOOGLE_CLIENT_SECRET",
+    "OIDC_CLIENT_ID",
+    "OIDC_CLIENT_SECRET",
+    "OIDC_AUTH_URI",
+    "OIDC_TOKEN_URI",
+    "OIDC_USERINFO_URI",
+    "SLACK_CLIENT_ID",
+    "SLACK_CLIENT_SECRET",
   ]
 }
 
@@ -116,11 +125,11 @@ resource "aws_ecs_task_definition" "web" {
     }
 
     healthCheck = {
-      command     = ["CMD-SHELL", "curl -f http://localhost:3000/_health || exit 1"]
+      command     = ["CMD-SHELL", "wget -qO- http://localhost:3000/_health || exit 1"]
       interval    = 30
-      timeout     = 5
-      retries     = 3
-      startPeriod = 60
+      timeout     = 10
+      retries     = 5
+      startPeriod = 120
     }
   }])
 
@@ -186,12 +195,9 @@ resource "aws_ecs_service" "web" {
     container_port   = 3000
   }
 
+  health_check_grace_period_seconds  = 120
   deployment_minimum_healthy_percent = 50
   deployment_maximum_percent         = 200
-
-  lifecycle {
-    ignore_changes = [task_definition, desired_count]  # Managed by CI/CD
-  }
 
   tags = { Name = "${var.project}-${var.env}-web-service" }
 }
@@ -211,10 +217,6 @@ resource "aws_ecs_service" "worker" {
 
   deployment_minimum_healthy_percent = 100  # Never have zero workers
   deployment_maximum_percent         = 200
-
-  lifecycle {
-    ignore_changes = [task_definition]  # Managed by CI/CD
-  }
 
   tags = { Name = "${var.project}-${var.env}-worker-service" }
 }

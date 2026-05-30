@@ -6,6 +6,11 @@ on:
     paths-ignore:
       - "infrastructure/**"
       - ".github/workflows/infrastructure.yml"
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - "infrastructure/**"
+      - ".github/workflows/infrastructure.yml"
   workflow_dispatch:
     inputs:
       environment:
@@ -39,7 +44,7 @@ env:
 jobs:
   build:
     name: Build & Push to Staging ECR
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.image_tag == '')
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.image_tag == '')
     runs-on: ubuntu-latest
     outputs:
       image-tag: ${{ steps.meta.outputs.version }}
@@ -90,8 +95,10 @@ jobs:
 
   # ──────────────────────────────────────────────────────────────────────────────
   # Deploy staging
-  # Runs automatically on push (after build) or manually for rollback.
-  # On rollback: image_tag is provided, build job is skipped — deploys existing image.
+  # Terraform owns the task definitions (secrets, env vars, health check config).
+  # This job just pushes :latest to ECR and forces a new deployment so ECS
+  # re-pulls the image. No task-def registration needed.
+  # On rollback: retag an old sha-xxx as :latest, then force deploy.
   # ──────────────────────────────────────────────────────────────────────────────
   deploy-staging:
     name: Deploy / Staging
@@ -99,12 +106,12 @@ jobs:
     if: |
       always() &&
       (needs.build.result == 'success' || needs.build.result == 'skipped') &&
-      (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.environment == 'staging'))
+      (github.event_name == 'push' || github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.environment == 'staging'))
     runs-on: ubuntu-latest
     environment: staging
     concurrency:
       group: deploy-staging
-      cancel-in-progress: false
+      cancel-in-progress: true
     env:
       IMAGE_TAG: ${{ inputs.image_tag != '' && inputs.image_tag || needs.build.outputs.image-tag }}
     steps:
@@ -122,53 +129,32 @@ jobs:
             --query 'imageDetails[0].imageTags' \
             --output text
 
-      - name: Register new web task definition
-        id: task-def-web
+      - name: Retag image as :latest (for rollback dispatches)
+        if: github.event_name == 'workflow_dispatch' && inputs.image_tag != ''
         run: |
-          IMAGE="${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.STAGING_REPO }}:${{ env.IMAGE_TAG }}"
-          TASK_DEF=$(aws ecs describe-task-definition \
-            --task-definition outline-staging-web \
-            --query taskDefinition)
-          NEW_TASK_DEF=$(echo "$TASK_DEF" | jq --arg IMAGE "$IMAGE" \
-            '.containerDefinitions[0].image = $IMAGE
-            | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
-          echo "$NEW_TASK_DEF" > task-def-web.json
-          NEW_ARN=$(aws ecs register-task-definition \
-            --cli-input-json file://task-def-web.json \
-            --query taskDefinition.taskDefinitionArn \
+          MANIFEST=$(aws ecr batch-get-image \
+            --repository-name ${{ env.STAGING_REPO }} \
+            --image-ids imageTag=${{ env.IMAGE_TAG }} \
+            --query 'images[0].imageManifest' \
             --output text)
-          echo "arn=$NEW_ARN" >> "$GITHUB_OUTPUT"
+          aws ecr put-image \
+            --repository-name ${{ env.STAGING_REPO }} \
+            --image-tag latest \
+            --image-manifest "$MANIFEST" || true
 
-      - name: Register new worker task definition
-        id: task-def-worker
-        run: |
-          IMAGE="${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.STAGING_REPO }}:${{ env.IMAGE_TAG }}"
-          TASK_DEF=$(aws ecs describe-task-definition \
-            --task-definition outline-staging-worker \
-            --query taskDefinition)
-          NEW_TASK_DEF=$(echo "$TASK_DEF" | jq --arg IMAGE "$IMAGE" \
-            '.containerDefinitions[0].image = $IMAGE
-            | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
-          echo "$NEW_TASK_DEF" > task-def-worker.json
-          NEW_ARN=$(aws ecs register-task-definition \
-            --cli-input-json file://task-def-worker.json \
-            --query taskDefinition.taskDefinitionArn \
-            --output text)
-          echo "arn=$NEW_ARN" >> "$GITHUB_OUTPUT"
-
-      - name: Deploy web service
+      - name: Force new deployment — web
         run: |
           aws ecs update-service \
             --cluster outline-staging \
             --service outline-staging-web \
-            --task-definition ${{ steps.task-def-web.outputs.arn }}
+            --force-new-deployment
 
-      - name: Deploy worker service
+      - name: Force new deployment — worker
         run: |
           aws ecs update-service \
             --cluster outline-staging \
             --service outline-staging-worker \
-            --task-definition ${{ steps.task-def-worker.outputs.arn }}
+            --force-new-deployment
 
       - name: Wait for services to stabilise
         run: |
@@ -177,7 +163,7 @@ jobs:
             --services outline-staging-web outline-staging-worker
 
       - name: Print deployed image
-        run: echo "Staged ${{ env.STAGING_REPO }}:${{ env.IMAGE_TAG }}"
+        run: echo "Deployed ${{ env.STAGING_REPO }}:${{ env.IMAGE_TAG }} (as :latest) to staging"
 
   # ──────────────────────────────────────────────────────────────────────────────
   # Deploy production
@@ -191,6 +177,7 @@ jobs:
     if: |
       always() &&
       needs.deploy-staging.result == 'success' &&
+      github.event_name != 'pull_request' &&
       (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.environment == 'production'))
     runs-on: ubuntu-latest
     environment: production
@@ -229,55 +216,21 @@ jobs:
           aws ecr put-image \
             --repository-name ${{ env.PRODUCTION_REPO }} \
             --image-tag latest \
-            --image-manifest "$MANIFEST"
+            --image-manifest "$MANIFEST" || true
 
-      - name: Register new web task definition
-        id: task-def-web
-        run: |
-          IMAGE="${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.PRODUCTION_REPO }}:${{ env.IMAGE_TAG }}"
-          TASK_DEF=$(aws ecs describe-task-definition \
-            --task-definition outline-production-web \
-            --query taskDefinition)
-          NEW_TASK_DEF=$(echo "$TASK_DEF" | jq --arg IMAGE "$IMAGE" \
-            '.containerDefinitions[0].image = $IMAGE
-            | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
-          echo "$NEW_TASK_DEF" > task-def-web.json
-          NEW_ARN=$(aws ecs register-task-definition \
-            --cli-input-json file://task-def-web.json \
-            --query taskDefinition.taskDefinitionArn \
-            --output text)
-          echo "arn=$NEW_ARN" >> "$GITHUB_OUTPUT"
-
-      - name: Register new worker task definition
-        id: task-def-worker
-        run: |
-          IMAGE="${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.PRODUCTION_REPO }}:${{ env.IMAGE_TAG }}"
-          TASK_DEF=$(aws ecs describe-task-definition \
-            --task-definition outline-production-worker \
-            --query taskDefinition)
-          NEW_TASK_DEF=$(echo "$TASK_DEF" | jq --arg IMAGE "$IMAGE" \
-            '.containerDefinitions[0].image = $IMAGE
-            | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
-          echo "$NEW_TASK_DEF" > task-def-worker.json
-          NEW_ARN=$(aws ecs register-task-definition \
-            --cli-input-json file://task-def-worker.json \
-            --query taskDefinition.taskDefinitionArn \
-            --output text)
-          echo "arn=$NEW_ARN" >> "$GITHUB_OUTPUT"
-
-      - name: Deploy web service
+      - name: Force new deployment — web
         run: |
           aws ecs update-service \
             --cluster outline-production \
             --service outline-production-web \
-            --task-definition ${{ steps.task-def-web.outputs.arn }}
+            --force-new-deployment
 
-      - name: Deploy worker service
+      - name: Force new deployment — worker
         run: |
           aws ecs update-service \
             --cluster outline-production \
             --service outline-production-worker \
-            --task-definition ${{ steps.task-def-worker.outputs.arn }}
+            --force-new-deployment
 
       - name: Wait for services to stabilise
         run: |

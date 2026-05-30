@@ -18,6 +18,7 @@ resource "aws_elasticache_replication_group" "this" {
 
   at_rest_encryption_enabled = true
   transit_encryption_enabled = true
+  transit_encryption_mode    = "preferred"  # accepts both TLS and plain during migration
 
   automatic_failover_enabled = var.num_replicas > 0
 

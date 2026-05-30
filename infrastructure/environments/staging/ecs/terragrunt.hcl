@@ -57,5 +57,5 @@ inputs = {
   web_max_capacity = local.account.locals.ecs_web_max_capacity
   worker_cpu       = local.account.locals.ecs_worker_cpu
   worker_memory    = local.account.locals.ecs_worker_memory
-  node_env         = local.account.locals.env  # "staging"
+  node_env         = "production"  # Must be "production" for Outline to serve built assets
 }
