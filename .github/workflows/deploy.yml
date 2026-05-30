@@ -72,23 +72,23 @@ jobs:
             type=sha,prefix=sha-,format=short
             type=raw,value=latest
 
-      - name: Build base image
+      - name: Build and push base image to ECR
         uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile.base
-          load: true
-          tags: outline-base:local
+          push: true
+          tags: ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.STAGING_REPO }}:base
           cache-from: type=gha,scope=base
           cache-to: type=gha,mode=max,scope=base
 
-      - name: Build and push to staging ECR
+      - name: Build and push app image to staging ECR
         uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile
           push: true
-          build-args: BASE_IMAGE=outline-base:local
+          build-args: BASE_IMAGE=${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.STAGING_REPO }}:base
           tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=gha,scope=app
           cache-to: type=gha,mode=max,scope=app
