@@ -51,6 +51,7 @@ jobs:
   # ────────────────────────────────────────────────────────────────────────────
   plan-staging:
     name: Plan / Staging
+    environment: staging
     if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.environment == 'staging')
     runs-on: ubuntu-latest
     outputs:
@@ -178,6 +179,7 @@ jobs:
   # ────────────────────────────────────────────────────────────────────────────
   plan-production:
     name: Plan / Production
+    environment: production
     if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.environment == 'production')
     runs-on: ubuntu-latest
     steps:
