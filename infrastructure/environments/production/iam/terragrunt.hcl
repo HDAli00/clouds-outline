@@ -5,7 +5,7 @@ locals {
 }
 dependency "s3" {
   config_path  = "../s3"
-  mock_outputs = { uploads_bucket_arn = "arn:aws:s3:::outline-production-uploads" }
+  mock_outputs = { uploads_bucket_arn = "arn:aws:s3:::outline-production-uploads", static_bucket_arn = "arn:aws:s3:::outline-production-static" }
 }
 dependency "ecr" {
   config_path  = "../ecr"
@@ -13,12 +13,11 @@ dependency "ecr" {
 }
 terraform { source = "../../../_modules//iam" }
 inputs = {
-  project              = local.common.locals.project
-  env                  = local.account.locals.env
-  aws_region           = local.common.locals.aws_region
-  account_id           = local.account.locals.account_id
-  uploads_bucket_arn   = dependency.s3.outputs.uploads_bucket_arn
-  ecr_repository_arn   = dependency.ecr.outputs.repository_arn
-  github_org           = "HDAli00"
-  github_repo          = "clouds-outline"
+  project            = local.common.locals.project
+  env                = local.account.locals.env
+  uploads_bucket_arn = dependency.s3.outputs.uploads_bucket_arn
+  static_bucket_arn  = dependency.s3.outputs.static_bucket_arn
+  ecr_repository_arn = dependency.ecr.outputs.repository_arn
+  github_org         = "HDAli00"
+  github_repo        = "clouds-outline"
 }

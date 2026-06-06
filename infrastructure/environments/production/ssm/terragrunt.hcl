@@ -9,11 +9,12 @@ dependency "s3" {
   mock_outputs = { uploads_bucket_id = "outline-production-uploads", uploads_bucket_arn = "arn:aws:s3:::outline-production-uploads" }
 }
 
-dependency "cloudfront" {
-  config_path  = "../cloudfront"
-  mock_outputs = { distribution_domain = "d0000000000000.cloudfront.net" }
-  mock_outputs_allowed_terraform_commands = ["validate", "plan"]
-}
+# TODO: Enable CloudFront dependency when custom domain is configured and ACM certificate is ready.
+# dependency "cloudfront" {
+#   config_path  = "../cloudfront"
+#   mock_outputs = { distribution_domain = "d0000000000000.cloudfront.net" }
+#   mock_outputs_allowed_terraform_commands = ["validate", "plan"]
+# }
 
 dependency "rds" {
   config_path = "../rds"
@@ -36,17 +37,32 @@ dependency "elasticache" {
 
 terraform { source = "../../../_modules//ssm" }
 
-# Remaining manual secrets (run once after first apply):
-#   aws ssm put-parameter --name /outline/production/SECRET_KEY \
-#     --value "$(openssl rand -hex 32)" --type SecureString --overwrite
-#   aws ssm put-parameter --name /outline/production/UTILS_SECRET \
-#     --value "$(openssl rand -hex 32)" --type SecureString --overwrite
+# ---------------------------------------------------------------------------
+# Outline environment variables — stored as SSM Parameters at /outline/production/*
+#
+# NON-SECRETS (String — constructed from Terraform outputs, visible in state):
+#   URL, CDN_URL, AWS_REGION, AWS_S3_UPLOAD_BUCKET_NAME, AWS_S3_UPLOAD_BUCKET_URL,
+#   SMTP_HOST, SMTP_PORT, SMTP_FROM_EMAIL
+#
+# SECRETS (SecureString with lifecycle.ignore_changes — set once on first apply,
+#          never overwritten by Terraform after that):
+#   SECRET_KEY, UTILS_SECRET  → still need manual CLI steps (truly random secrets)
+#   DATABASE_URL, REDIS_URL   → auto-constructed from RDS/ElastiCache outputs below
+#   SMTP_USERNAME, SMTP_PASSWORD → set via CLI after creating SES SMTP credentials
+#
+#   Remaining manual secrets (run once after first apply):
+#     aws ssm put-parameter --name /outline/production/SECRET_KEY \
+#       --value "$(openssl rand -hex 32)" --type SecureString --overwrite
+#     aws ssm put-parameter --name /outline/production/UTILS_SECRET \
+#       --value "$(openssl rand -hex 32)" --type SecureString --overwrite
+# ---------------------------------------------------------------------------
 inputs = {
   project = local.common.locals.project
   env     = local.account.locals.env
 
   app_url              = "https://${local.account.locals.domain}"
-  cloudfront_domain    = dependency.cloudfront.outputs.distribution_domain
+  # cloudfront_domain    = dependency.cloudfront.outputs.distribution_domain  # uncomment when CloudFront is ready
+  # cdn_url              = "https://${dependency.cloudfront.outputs.distribution_domain}"  # uncomment when CloudFront is ready
   aws_region           = local.common.locals.aws_region
   s3_upload_bucket     = dependency.s3.outputs.uploads_bucket_id
   s3_upload_bucket_url = "https://s3.${local.common.locals.aws_region}.amazonaws.com"

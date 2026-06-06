@@ -18,9 +18,11 @@ locals {
   private_app_subnet_cidrs  = ["10.1.10.0/24", "10.1.11.0/24"]
   private_data_subnet_cidrs = ["10.1.20.0/24", "10.1.21.0/24"]
 
-  # Instance sizing — production grade
-  rds_instance_class   = "db.r6g.large"
-  redis_node_type      = "cache.r6g.large"
+  # Instance sizing — free tier eligible (db.t3.micro = 750h/month free, 20 GB)
+  rds_instance_class        = "db.t3.micro"
+  rds_allocated_storage     = 20
+  rds_max_allocated_storage = 20  # disable autoscaling on free tier
+  redis_node_type           = "cache.t3.micro"
   ecs_web_cpu          = 1024
   ecs_web_memory       = 2048
   ecs_worker_cpu       = 512
