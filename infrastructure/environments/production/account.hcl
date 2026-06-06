@@ -27,4 +27,6 @@ locals {
   ecs_worker_memory    = 1024
   ecs_web_min_capacity = 2
   ecs_web_max_capacity = 8
+  ecs_worker_min_capacity = 2
+  ecs_worker_max_capacity = 8 
 }
