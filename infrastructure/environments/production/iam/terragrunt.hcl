@@ -20,5 +20,5 @@ inputs = {
   ecr_repository_arn             = dependency.ecr.outputs.repository_arn
   github_org                     = "HDAli00"
   github_repo                    = "clouds-outline"
-  create_github_oidc_provider    = true  # Production creates its own separate OIDC provider
-}
+  create_github_oidc_provider    = false  # OIDC provider already exists at account-level; use data source
+

@@ -28,5 +28,5 @@ inputs = {
   ecr_repository_arn             = dependency.ecr.outputs.repository_arn
   github_org                     = "HDAli00"
   github_repo                    = "clouds-outline"
-  create_github_oidc_provider    = true  # Staging creates the OIDC provider (account-level resource)
+  create_github_oidc_provider    = false  # OIDC provider already exists at account-level; use data source
 }
