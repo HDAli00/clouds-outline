@@ -1,6 +1,10 @@
 ## Overview
 
-This infrastructure demonstrates a modern CI/CD workflow built to learn Terraform, Terragrunt, AWS, and GitHub Actions. The goal is to show how infrastructure-as-code, containerization, and automated deployment can work together.
+This infrastructure demonstrates a modern CI/CD workflow built to experiment Terraform, Terragrunt, AWS, and GitHub Actions. The goal is to show how infrastructure-as-code, containerization, and automated deployment can work together.
+
+Below is the Complete architecture of the infrastructure.
+
+![Outline-AWS-Infrastructure](images/Outline%20AWS%20Infrastrcuture.png)
 
 Two environments run on AWS free tier:
 
@@ -88,9 +92,9 @@ Images are built once and promoted between environments using digest-based copyi
 
 Both staging and production use AWS free tier eligible resources to minimize costs during development:
 
-- **Database:** db.t3.micro (750 hours/month free)
-- **Cache:** cache.t3.micro (750 hours/month free)
-- **Storage:** 20 GB (included in free tier)
+- **Database:** db.t3.micro
+- **Cache:** cache.t3.micro
+- **Storage:** 20 GB
 
 This setup is ideal for learning and experimentation but should be upgraded to production-grade resources (larger instances, multi-AZ, automated backups) when handling real traffic.
 
@@ -103,3 +107,9 @@ This infrastructure demonstrates:
 3. **CI/CD Automation** - Workflow that tests and deploys code automatically
 4. **Security Practices** - No static credentials, approval gates, parameter store for secrets
 5. **Cost Optimization** - Free tier resources suitable for development and experimentation
+
+## OIDC
+
+Instead of storing a password (AWS access key) in GitHub for deployments, you set up a "trust agreement" between GitHub and AWS. I configured **federated identity** using OIDC. GitHub acts as the identity provider (IdP); AWS IAM is the service provider (SP). At runtime, GitHub's OIDC endpoint mints a short-lived JWT with claims including the repo, branch, and workflow context. AWS STS validates the token signature against the registered IdP thumbprint, verifies the `aud` claim matches `sts.amazonaws.com`, and evaluates the IAM role's trust policy against the `sub` claim (`repo:HDAli00/clouds-outline:*`). On success, STS returns ephemeral credentials via `AssumeRoleWithWebIdentity`. This eliminates long-lived static credentials entirely, no secret rotation, no credential leakage risk, full auditability via CloudTrail.
+
+![Outline-AWS-Architecture](images/CICD%20process.png)
