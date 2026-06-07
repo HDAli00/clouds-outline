@@ -32,7 +32,6 @@ permissions:
 
 env:
   AWS_REGION: eu-west-1
-  AWS_ACCOUNT_ID: "004947744285"
   STAGING_REPO: outline-staging
   PRODUCTION_REPO: outline-production
 
@@ -46,6 +45,7 @@ jobs:
     name: Build & Push to Staging ECR
     if: github.event_name == 'push' || github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.image_tag == '')
     runs-on: ubuntu-latest
+    environment: staging
     outputs:
       image-tag: ${{ steps.meta.outputs.version }}
     steps:
@@ -67,7 +67,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.STAGING_REPO }}
+          images: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.STAGING_REPO }}
           tags: |
             type=sha,prefix=sha-,format=short
             type=raw,value=latest
@@ -78,7 +78,7 @@ jobs:
           context: .
           file: Dockerfile.base
           push: true
-          tags: ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.STAGING_REPO }}:base
+          tags: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.STAGING_REPO }}:base
           cache-from: type=gha,scope=base
           cache-to: type=gha,mode=max,scope=base
 
@@ -88,7 +88,7 @@ jobs:
           context: .
           file: Dockerfile
           push: true
-          build-args: BASE_IMAGE=${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.STAGING_REPO }}:base
+          build-args: BASE_IMAGE=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.STAGING_REPO }}:base
           tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=gha,scope=app
           cache-to: type=gha,mode=max,scope=app

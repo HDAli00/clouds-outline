@@ -32,14 +32,14 @@ resource "aws_iam_role_policy" "ecs_execution_ssm" {
       {
         Effect = "Allow"
         Action = ["ssm:GetParameter", "ssm:GetParameters", "ssm:GetParametersByPath"]
-        Resource = "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/${var.project}/${var.env}/*"
+        Resource = "arn:aws:ssm:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:parameter/${var.project}/${var.env}/*"
       },
       {
         Effect   = "Allow"
         Action   = ["kms:Decrypt"]
         Resource = "*"
         Condition = {
-          StringEquals = { "kms:ViaService" = "ssm.${data.aws_region.current.name}.amazonaws.com" }
+          StringEquals = { "kms:ViaService" = "ssm.${data.aws_region.current.id}.amazonaws.com" }
         }
       }
     ]
@@ -113,7 +113,7 @@ resource "aws_iam_openid_connect_provider" "github" {
   count           = var.create_github_oidc_provider ? 1 : 0
   url             = "https://token.actions.githubusercontent.com"
   client_id_list  = ["sts.amazonaws.com"]
-  thumbprint_list = ["6938fd4d98bab03faadb97b34396831e3780aea1"]
+  thumbprint_list = [var.github_oidc_thumbprint]
 }
 
 data "aws_iam_openid_connect_provider" "github" {
