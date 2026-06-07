@@ -21,11 +21,12 @@ terraform {
 }
 
 inputs = {
-  project            = local.common.locals.project
-  env                = local.account.locals.env
-  uploads_bucket_arn = dependency.s3.outputs.uploads_bucket_arn
-  static_bucket_arn  = dependency.s3.outputs.static_bucket_arn
-  ecr_repository_arn = dependency.ecr.outputs.repository_arn
-  github_org         = "HDAli00"
-  github_repo        = "clouds-outline"
+  project                        = local.common.locals.project
+  env                            = local.account.locals.env
+  uploads_bucket_arn             = dependency.s3.outputs.uploads_bucket_arn
+  static_bucket_arn              = dependency.s3.outputs.static_bucket_arn
+  ecr_repository_arn             = dependency.ecr.outputs.repository_arn
+  github_org                     = "HDAli00"
+  github_repo                    = "clouds-outline"
+  create_github_oidc_provider    = false  # OIDC provider already exists at account-level; use data source
 }

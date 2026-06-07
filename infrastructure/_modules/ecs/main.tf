@@ -198,11 +198,10 @@ resource "aws_ecs_service" "web" {
   health_check_grace_period_seconds  = 120
   deployment_minimum_healthy_percent = 50
   deployment_maximum_percent         = 200
-  
-  # TODO: Add after first stable deploy:
-  # lifecycle {
-  #   ignore_changes = [desired_count]
-  # }
+
+  lifecycle {
+    ignore_changes = [desired_count]
+  }
 
   tags = { Name = "${var.project}-${var.env}-web-service" }
 }
@@ -211,7 +210,7 @@ resource "aws_ecs_service" "worker" {
   name            = "${var.project}-${var.env}-worker"
   cluster         = aws_ecs_cluster.this.id
   task_definition = aws_ecs_task_definition.worker.arn
-  desired_count   = 1
+  desired_count   = var.worker_min_capacity    # start with minimum capacity; auto-scaling will adjust as needed
   launch_type     = "FARGATE"
 
   network_configuration {
@@ -222,6 +221,10 @@ resource "aws_ecs_service" "worker" {
 
   deployment_minimum_healthy_percent = 100  # Never have zero workers
   deployment_maximum_percent         = 200
+
+  lifecycle {
+    ignore_changes = [desired_count]    # allow auto-scaling to adjust desired_count without Terraform interference
+  }
 
   tags = { Name = "${var.project}-${var.env}-worker-service" }
 }
@@ -243,6 +246,35 @@ resource "aws_appautoscaling_policy" "web_cpu" {
   resource_id        = aws_appautoscaling_target.web.resource_id
   scalable_dimension = aws_appautoscaling_target.web.scalable_dimension
   service_namespace  = aws_appautoscaling_target.web.service_namespace
+
+  target_tracking_scaling_policy_configuration {
+    predefined_metric_specification {
+      predefined_metric_type = "ECSServiceAverageCPUUtilization"
+    }
+    target_value       = 60.0
+    scale_in_cooldown  = 300
+    scale_out_cooldown = 60
+  }
+}
+
+
+# ---------------------------------------------------------------------------
+# Auto-scaling for Worker process
+# ---------------------------------------------------------------------------
+resource "aws_appautoscaling_target" "worker" {
+  max_capacity       = var.worker_max_capacity
+  min_capacity       = var.worker_min_capacity
+  resource_id        = "service/${aws_ecs_cluster.this.name}/${aws_ecs_service.worker.name}"
+  scalable_dimension = "ecs:service:DesiredCount"
+  service_namespace  = "ecs"
+}
+
+resource "aws_appautoscaling_policy" "worker_cpu" {
+  name               = "${var.project}-${var.env}-worker-cpu-scaling"
+  policy_type        = "TargetTrackingScaling"
+  resource_id        = aws_appautoscaling_target.worker.resource_id
+  scalable_dimension = aws_appautoscaling_target.worker.scalable_dimension
+  service_namespace  = aws_appautoscaling_target.worker.service_namespace
 
   target_tracking_scaling_policy_configuration {
     predefined_metric_specification {

@@ -13,10 +13,13 @@ dependency "security_groups" {
 }
 terraform { source = "../../../_modules//rds" }
 inputs = {
-  project            = local.common.locals.project
-  env                = local.account.locals.env
-  instance_class     = local.account.locals.rds_instance_class
-  subnet_ids         = dependency.vpc.outputs.private_data_subnet_ids
-  security_group_ids = [dependency.security_groups.outputs.rds_sg_id]
-  multi_az           = true  # production: Multi-AZ enabled
+  project                  = local.common.locals.project
+  env                      = local.account.locals.env
+  instance_class           = local.account.locals.rds_instance_class
+  allocated_storage        = local.account.locals.rds_allocated_storage
+  max_allocated_storage    = local.account.locals.rds_max_allocated_storage
+  subnet_ids               = dependency.vpc.outputs.private_data_subnet_ids
+  security_group_ids       = [dependency.security_groups.outputs.rds_sg_id]
+  multi_az                 = true   # production: Multi-AZ enabled
+  backup_retention_period  = 0     # Free Tier restriction: max 0 days
 }

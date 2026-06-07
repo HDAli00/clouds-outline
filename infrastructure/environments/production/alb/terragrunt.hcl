@@ -11,16 +11,17 @@ dependency "security_groups" {
   config_path  = "../security-groups"
   mock_outputs = { alb_sg_id = "sg-0" }
 }
-dependency "acm" {
-  config_path  = "../acm"
-  mock_outputs = { certificate_arn = "arn:aws:acm:us-east-1:123:certificate/xxx" }
-}
+# TODO: Enable ACM certificate when custom domain (wiki.example.com) is configured.
+# dependency "acm" {
+#   config_path  = "../acm"
+#   mock_outputs = { certificate_arn = "arn:aws:acm:eu-west-1:123:certificate/xxx" }
+# }
 terraform { source = "../../../_modules//alb" }
 inputs = {
-  project         = local.common.locals.project
-  env             = local.account.locals.env
-  vpc_id          = dependency.vpc.outputs.vpc_id
-  public_subnets  = dependency.vpc.outputs.public_subnet_ids
-  alb_sg_id       = dependency.security_groups.outputs.alb_sg_id
-  certificate_arn = dependency.acm.outputs.certificate_arn
+  project        = local.common.locals.project
+  env            = local.account.locals.env
+  vpc_id         = dependency.vpc.outputs.vpc_id
+  public_subnets = dependency.vpc.outputs.public_subnet_ids
+  alb_sg_id      = dependency.security_groups.outputs.alb_sg_id
+  # certificate_arn = dependency.acm.outputs.certificate_arn  # uncomment when ACM is ready
 }

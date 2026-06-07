@@ -5,6 +5,7 @@ locals {
 }
 terraform { source = "../../../_modules//s3" }
 inputs = {
-  project = local.common.locals.project
-  env     = local.account.locals.env
+  project              = local.common.locals.project
+  env                  = local.account.locals.env
+  uploads_cors_origins = ["https://${local.account.locals.domain}"]
 }

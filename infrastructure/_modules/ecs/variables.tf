@@ -22,3 +22,13 @@ variable "web_max_capacity"     { type = number }
 # Worker process sizing
 variable "worker_cpu"           { type = number }
 variable "worker_memory"        { type = number }
+
+variable "worker_min_capacity" {
+  type        = number
+  description = "Minimum number of worker tasks"
+}
+
+variable "worker_max_capacity" {
+  type        = number
+  description = "Maximum number of worker tasks"
+}
